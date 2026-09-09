@@ -1,4 +1,4 @@
-import { writeFile, mkdir } from 'fs/promises';
+import { writeFile, unlink, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { pool } from '../db.js';
 import { parseLog } from '../parser.js';
@@ -34,6 +34,7 @@ export async function gamesRoutes(fastify) {
     // without them telling us.  In v1, we always coach from player 1's perspective.
     const myPlayer = 1;
 
+    let logPath = null;
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -59,7 +60,7 @@ export async function gamesRoutes(fastify) {
       const game = gameResult.rows[0];
 
       // Save raw log to disk
-      const logPath = join(LOG_DIR, `${game.id}.txt`);
+      logPath = join(LOG_DIR, `${game.id}.txt`);
       await mkdir(LOG_DIR, { recursive: true });
       await writeFile(logPath, rawText, 'utf8');
 
@@ -118,6 +119,7 @@ export async function gamesRoutes(fastify) {
       });
     } catch (err) {
       await client.query('ROLLBACK');
+      if (logPath) await unlink(logPath).catch(() => {});
       throw err;
     } finally {
       client.release();
