@@ -39,7 +39,7 @@ Run the API and web packages independently for local development:
 
 ```bash
 # API (requires a running PostgreSQL)
-cd packages/api && npm install && DATABASE_URL=postgres://tcgcoach:tcgcoach@localhost:5432/tcgcoach JWT_SECRET=dev npm run dev
+cd packages/api && npm install && DATABASE_URL=postgres://tcgcoach:tcgcoach@localhost:5433/tcgcoach JWT_SECRET=dev npm run dev
 
 # Web
 cd packages/web && npm install && NEXT_PUBLIC_API_URL=http://localhost:3001 npm run dev
