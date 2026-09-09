@@ -86,7 +86,7 @@ function checkFirstTurnSetup(turn, _parsedLog) {
 
   const actionCount = turn.actions.length;
 
-  if (actionCount >= 0 && actionCount <= 3) {
+  if (actionCount <= 3) {
     return [{
       severity: 'warning',
       text: `Your turn 1 only recorded ${actionCount} setup action${actionCount !== 1 ? 's' : ''}. ` +

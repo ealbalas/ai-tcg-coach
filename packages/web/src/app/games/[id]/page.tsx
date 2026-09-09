@@ -109,8 +109,8 @@ function formatDate(iso: string) {
   });
 }
 
-function deriveMyPlayer(game: GameDetail['game']): number {
-  return game.went_first === false ? 2 : 1;
+function deriveMyPlayer(_game: GameDetail['game']): number {
+  return 1;
 }
 
 export default function GameDetailPage() {
