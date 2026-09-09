@@ -4,10 +4,13 @@ import { pool } from '../db.js';
 import { parseLog } from '../parser.js';
 import { runHeuristics } from '../coaching.js';
 import { authenticate } from '../middleware/auth.js';
+import { getCardName } from '../cards.js';
 
 const LOG_DIR = process.env.LOG_DIR || './data/logs';
 
-export async function gamesRoutes(fastify) {
+export async function gamesRoutes(fastify, opts = {}) {
+  const db = opts.pool ?? pool;
+
   fastify.post('/api/games/upload', {
     preHandler: authenticate,
   }, async (request, reply) => {
@@ -35,7 +38,7 @@ export async function gamesRoutes(fastify) {
     const myPlayer = 1;
 
     let logPath = null;
-    const client = await pool.connect();
+    const client = await db.connect();
     try {
       await client.query('BEGIN');
 
@@ -91,7 +94,7 @@ export async function gamesRoutes(fastify) {
       // Insert coaching notes
       const insertedNotes = [];
       for (const note of coachingNotes) {
-        const turnId = turnIdMap.get(note.turnNumber);
+        const turnId = note.turnNumber != null ? (turnIdMap.get(note.turnNumber) ?? null) : null;
         const noteResult = await client.query(
           `INSERT INTO coaching_notes (game_id, turn_id, layer, severity, text)
            VALUES ($1, $2, $3, $4, $5)
@@ -129,7 +132,7 @@ export async function gamesRoutes(fastify) {
   fastify.get('/api/games', {
     preHandler: authenticate,
   }, async (request) => {
-    const result = await pool.query(
+    const result = await db.query(
       `SELECT id, uploaded_at, my_leader_card_id, opp_leader_card_id,
               went_first, result, coaching_status
        FROM games
@@ -145,7 +148,7 @@ export async function gamesRoutes(fastify) {
   }, async (request, reply) => {
     const { id } = request.params;
 
-    const gameResult = await pool.query(
+    const gameResult = await db.query(
       'SELECT * FROM games WHERE id = $1 AND user_id = $2',
       [id, request.userId],
     );
@@ -154,18 +157,20 @@ export async function gamesRoutes(fastify) {
     }
     const game = gameResult.rows[0];
 
-    const turnsResult = await pool.query(
+    const turnsResult = await db.query(
       'SELECT * FROM turns WHERE game_id = $1 ORDER BY turn_number',
       [id],
     );
 
-    const notesResult = await pool.query(
+    const notesResult = await db.query(
       'SELECT * FROM coaching_notes WHERE game_id = $1 ORDER BY created_at',
       [id],
     );
 
     return {
       game,
+      my_leader_name: getCardName(game.my_leader_card_id),
+      opp_leader_name: getCardName(game.opp_leader_card_id),
       turns: turnsResult.rows,
       coaching_notes: notesResult.rows,
     };

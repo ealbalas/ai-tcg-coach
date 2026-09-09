@@ -18,11 +18,13 @@
  * on ambiguous data are skipped and documented below.
  */
 
+import { getCardName } from './cards.js';
+
 /**
  * @param {import('./parser.js').ParsedLog} parsedLog
  * @param {Map<number, string>} turnIdMap  - maps turn_number -> DB UUID for that turn
  * @param {number} myPlayer  - which player number (1 or 2) this user is
- * @returns {Array<{turnNumber: number, severity: string, text: string}>}
+ * @returns {Array<{turnNumber: number|null, severity: string, text: string}>}
  */
 export function runHeuristics(parsedLog, turnIdMap, myPlayer) {
   const notes = [];
@@ -35,6 +37,7 @@ export function runHeuristics(parsedLog, turnIdMap, myPlayer) {
       ...checkDonUnused(turn, parsedLog),
       ...checkNoAttacks(turn, parsedLog),
       ...checkFirstTurnSetup(turn, parsedLog),
+      ...checkEmptyTurn(turn, parsedLog),
     ];
 
     for (const note of turnNotes) {
@@ -46,88 +49,125 @@ export function runHeuristics(parsedLog, turnIdMap, myPlayer) {
     }
   }
 
+  // Game-level notes (turnNumber: null signals turn_id should be null)
+  const gameNotes = checkLeaderRecognition(parsedLog, myPlayer);
+  for (const note of gameNotes) {
+    notes.push({ turnNumber: null, severity: note.severity, text: note.text });
+  }
+
   return notes;
 }
 
 /**
  * Heuristic 1: DON!! left unused.
- *
- * DON!! is the resource system in OPTCG.  Players have a DON!! deck and attach
- * DON!! cards to characters/leader to give power boosts, or use them for costs.
- * Leaving DON!! unspent at end of turn is generally suboptimal.
- *
- * IMPLEMENTATION STATUS: SKIPPED for v1 heuristic accuracy.
- * The available log sample does not include confirmed in-game action sequences
- * (only deck-setup phase is shown).  Without knowing which action types correspond
- * to "DON!! attach" vs "DON!! for cost" vs "end turn", we cannot reliably compute
- * remaining DON!! without generating false positives.
- *
- * When the log format for in-game actions is confirmed, implement by:
- * - Identifying "gain DON!!" action types (player receives DON!! at turn start)
- * - Identifying "attach DON!!" and "use DON!! for cost" action types
- * - Computing: gained - spent.  Flag if remainder > 0.
+ * IMPLEMENTATION STATUS: SKIPPED - field meanings not confirmed from log samples.
  */
 function checkDonUnused(_turn, _parsedLog) {
-  // Skipped: field meanings for in-game DON!! actions not yet confirmed from log samples.
-  // Re-enable once richer in-game log samples are analyzed.
   return [];
 }
 
 /**
  * Heuristic 2: No attacks made.
- *
- * In OPTCG, applying pressure every turn is generally correct.  A turn with no
- * attacks (when the player has characters or their leader available to attack)
- * is worth flagging as informational.
- *
- * IMPLEMENTATION STATUS: SKIPPED for v1 heuristic accuracy.
- * Attack actions cannot be distinguished from other actions without confirmed
- * action-type field values.  The log sample only shows setup-phase card placements.
- *
- * When confirmed: look for action lines with the attack action code, compare
- * count against available characters on board.  Flag if zero attacks and
- * board state shows attackers are present.
+ * IMPLEMENTATION STATUS: SKIPPED - attack action codes not confirmed from log samples.
  */
 function checkNoAttacks(_turn, _parsedLog) {
-  // Skipped: action type field (distinguishing attack vs. play/draw/etc.) not confirmed.
-  // Re-enable once in-game action lines are reverse-engineered from richer samples.
   return [];
 }
 
 /**
- * Heuristic 3: First turn draw setup.
+ * Heuristic 3: Opening hand / life zone setup (turn 1).
  *
- * The player who goes first in OPTCG does not draw on their first turn (rule).
- * If the log shows them drawing anyway, that is a rules error worth flagging.
- * Additionally, an unusually low action count on turn 1 may indicate the player
- * skipped setting up (e.g., forgot to look at their opening hand mulligan option).
- *
- * IMPLEMENTATION STATUS: PARTIAL.
- * We can detect whether the game's very first turn (turn 1) appears to be a
- * setup phase with very few actions.  We flag it only if the action count is
- * suspiciously low (< 2) because that strongly suggests an incomplete setup.
- * False-positive rate is low: a player who makes zero or one actions on turn 1
- * almost certainly forgot something.
+ * In OPTCG, each player places exactly 5 cards from their hand into their life zone
+ * at the start of the game.  The log's setup phase should therefore record exactly
+ * 5 card-placement actions for the first turn.
  */
-function checkFirstTurnSetup(turn, parsedLog) {
+function checkFirstTurnSetup(turn, _parsedLog) {
   if (turn.turnNumber !== 1) return [];
 
-  // Only relevant when the user goes first (first turn belongs to the player who goes first)
-  // parsedLog.player1GoesFirst may be null if not recorded in log
   const actionCount = turn.actions.length;
 
-  // During the setup phase, players place 5 cards from hand into their life zone.
-  // The sample shows 10 setup actions (5 per player sequentially).
-  // If the FIRST turn has fewer than 2 actions, it is suspiciously incomplete.
-  // We cannot reliably distinguish "setup phase" from "main turn" without confirmed
-  // action-type fields, so we use a conservative threshold.
-  if (actionCount < 2) {
+  if (actionCount <= 3) {
+    return [{
+      severity: 'warning',
+      text: `Your turn 1 only recorded ${actionCount} setup action${actionCount !== 1 ? 's' : ''}. ` +
+        'Did you complete your opening life card placement? ' +
+        'OPTCG requires each player to place 5 cards into the life zone before the game begins.',
+    }];
+  }
+
+  if (actionCount === 4) {
     return [{
       severity: 'info',
-      text: `Turn 1: Only ${actionCount} action(s) recorded on your first turn. ` +
-        'Make sure you completed your opening setup (e.g., placing life cards) correctly.',
+      text: `Turn 1 shows ${actionCount} setup actions (expected 5 for life zone placement). ` +
+        'You may have missed placing one life card.',
+    }];
+  }
+
+  if (actionCount >= 6) {
+    return [{
+      severity: 'info',
+      text: `Turn 1 shows ${actionCount} setup actions, more than the usual 5. ` +
+        'The log may include extra events, or setup was restarted.',
     }];
   }
 
   return [];
+}
+
+/**
+ * Heuristic 4: Empty turn (non-turn-1).
+ *
+ * A player turn with no recorded actions after the setup phase is unusual.
+ * This may mean the player passed without doing anything, which is rarely optimal.
+ */
+function checkEmptyTurn(turn, _parsedLog) {
+  if (turn.turnNumber === 1) return [];
+  if (turn.actions.length > 0) return [];
+
+  return [{
+    severity: 'info',
+    text: `Turn ${turn.turnNumber}: No actions recorded for your turn. ` +
+      'If this is correct, consider whether you had plays available - ' +
+      'in OPTCG, applying pressure every turn is usually correct.',
+  }];
+}
+
+/**
+ * Heuristic 5: Leader card recognition (game-level).
+ *
+ * If the leader is recognized in the card database, add a one-time strategic tip
+ * based on which set the leader comes from.
+ */
+function checkLeaderRecognition(parsedLog, myPlayer) {
+  const myLeaderId = myPlayer === 1 ? parsedLog.player1Leader : parsedLog.player2Leader;
+  if (!myLeaderId) return [];
+
+  const name = getCardName(myLeaderId);
+  if (!name) return [];
+
+  const setCode = myLeaderId.split('-')[0];
+
+  let tip;
+  if (setCode.startsWith('OP')) {
+    const setNumber = parseInt(setCode.slice(2), 10);
+    if (!isNaN(setNumber) && setNumber <= 5) {
+      tip = 'Classic set leader - foundational strategies apply. ' +
+        'Study the core mechanics and basic deck archetypes for this leader.';
+    } else {
+      tip = 'Newer set leader - keep up with the evolving meta. ' +
+        'Check recent tournament results for current optimal lines.';
+    }
+  } else if (setCode.startsWith('ST')) {
+    tip = 'Starter deck leader - solid foundation for learning the game.';
+  } else {
+    return [{
+      severity: 'info',
+      text: `Leader recognized: ${name} (${myLeaderId}).`,
+    }];
+  }
+
+  return [{
+    severity: 'info',
+    text: `Leader recognized: ${name} (${myLeaderId}). ${tip}`,
+  }];
 }

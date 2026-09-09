@@ -63,13 +63,23 @@ CHK line: `RZ1|CHK|<seq>|<player>|<f0..f9>`
 In-game action types (attacks, DON!!, card plays) have not been confirmed from real game logs.
 The parser stores all unknown fields raw so they can be reinterpreted once richer samples arrive.
 
+## Card name lookup
+
+Implementation: `packages/api/src/cards.js`
+`loadCards()` is called non-blocking at startup: it tries two remote community JSON URLs, falls back to a hardcoded leader map if both fail.
+`getCardName(cardId)` returns the cached name or `null`.
+The startup race window (requests arriving before the cache is warm) is accepted: coaching notes written during that window will simply lack a leader-recognition note.
+
 ## Heuristic coaching engine
 
 Implementation: `packages/api/src/coaching.js`
 Runs synchronously after upload; notes stored in `coaching_notes` table with `layer='rule'`.
+Game-level notes (not tied to a turn) are stored with `turn_id = NULL`.
 
 Implemented heuristics:
-- **Turn 1 low action count** (`checkFirstTurnSetup`): flags `severity='info'` if turn 1 has fewer than 2 actions, suggesting setup may be incomplete.
+- **Turn 1 setup** (`checkFirstTurnSetup`): `severity='warning'` if ≤3 actions on turn 1 (incomplete life zone placement); `severity='info'` if exactly 4 (one card short) or ≥6 (more events than expected).
+- **Empty turn** (`checkEmptyTurn`): `severity='info'` for any non-turn-1 turn with zero recorded actions.
+- **Leader recognition** (`checkLeaderRecognition`): game-level note (turn_id = NULL). Card name resolved via `getCardName`. `OP` prefix: set number ≤5 = classic tip, >5 = newer-meta tip. `ST` prefix = starter-deck tip. Other prefixes = generic recognition note.
 
 Heuristics intentionally skipped (and why):
 - **DON!! unused**: requires confirmed action-type fields for DON!! gain/attach/cost - not yet reverse-engineered from log samples.
