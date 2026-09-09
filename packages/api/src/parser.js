@@ -82,6 +82,8 @@
  * @property {string|null} player1Leader
  * @property {string|null} player2Leader
  * @property {boolean|null} player1GoesFirst  - true if player1 goes first, null if unknown
+ * @property {number|null} disconnectedPlayer  - 1 or 2 if a player disconnected, null otherwise
+ * @property {boolean} hadPartialPreviousGame  - true if the log contained a prior session prefix
  * @property {Turn[]} turns
  * @property {RawEvent[]} rawEvents
  */
@@ -111,7 +113,13 @@
  */
 
 export function parseLog(text) {
-  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  // Detect dirty logs: split on each "Waiting for a Connection" marker and keep only the last session
+  const sessionBoundary = /(?=^Waiting for a Connection with Room ID:)/m;
+  const sessions = text.split(sessionBoundary).filter((s) => s.trim().length > 0);
+  const hadPartialPreviousGame = sessions.length > 1;
+  const sessionText = sessions[sessions.length - 1];
+
+  const lines = sessionText.split('\n').map((l) => l.trim()).filter(Boolean);
 
   const result = {
     roomId: null,
@@ -121,6 +129,8 @@ export function parseLog(text) {
     player1Leader: null,
     player2Leader: null,
     player1GoesFirst: null,
+    disconnectedPlayer: null,
+    hadPartialPreviousGame,
     turns: [],
     rawEvents: [],
   };
@@ -183,6 +193,17 @@ export function parseLog(text) {
         result.player1GoesFirst = choice === 'Second' ? playerNum !== 1 : playerNum === 1;
       }
       result.rawEvents.push({ type: 'header', raw: line, parsed: { player: playerNum, choice } });
+      continue;
+    }
+
+    // Player disconnect
+    const disconnectMatch = line.match(/^(.+#\d+) Has Disconnected$/i)
+      || line.match(/^(.+#\d+) has left the game$/i);
+    if (disconnectMatch) {
+      const name = disconnectMatch[1];
+      const playerNum = playerMap[name];
+      if (playerNum != null) result.disconnectedPlayer = playerNum;
+      result.rawEvents.push({ type: 'header', raw: line, parsed: { player: playerNum, disconnected: true } });
       continue;
     }
 
