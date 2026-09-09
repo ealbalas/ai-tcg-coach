@@ -96,6 +96,8 @@ export interface GameDetail {
     optcgsim_version: string | null;
     room_id: string | null;
   };
+  my_leader_name: string | null;
+  opp_leader_name: string | null;
   turns: Turn[];
   coaching_notes: CoachingNote[];
 }

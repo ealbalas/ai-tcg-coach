@@ -4,6 +4,7 @@ import multipart from '@fastify/multipart';
 import { pool } from './db.js';
 import { authRoutes } from './routes/auth.js';
 import { gamesRoutes } from './routes/games.js';
+import { loadCards } from './cards.js';
 
 const fastify = Fastify({ logger: true });
 
@@ -30,6 +31,8 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
 
 try {
   await runMigrations();
+  // Non-blocking: warn and continue if card data cannot be fetched
+  loadCards().catch((err) => fastify.log.warn({ err }, 'Failed to load card data'));
   await fastify.listen({ port: PORT, host: '0.0.0.0' });
 } catch (err) {
   fastify.log.error(err);

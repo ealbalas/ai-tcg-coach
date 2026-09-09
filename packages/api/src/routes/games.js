@@ -4,6 +4,7 @@ import { pool } from '../db.js';
 import { parseLog } from '../parser.js';
 import { runHeuristics } from '../coaching.js';
 import { authenticate } from '../middleware/auth.js';
+import { getCardName } from '../cards.js';
 
 const LOG_DIR = process.env.LOG_DIR || './data/logs';
 
@@ -91,7 +92,7 @@ export async function gamesRoutes(fastify) {
       // Insert coaching notes
       const insertedNotes = [];
       for (const note of coachingNotes) {
-        const turnId = turnIdMap.get(note.turnNumber);
+        const turnId = note.turnNumber != null ? (turnIdMap.get(note.turnNumber) ?? null) : null;
         const noteResult = await client.query(
           `INSERT INTO coaching_notes (game_id, turn_id, layer, severity, text)
            VALUES ($1, $2, $3, $4, $5)
@@ -166,6 +167,8 @@ export async function gamesRoutes(fastify) {
 
     return {
       game,
+      my_leader_name: getCardName(game.my_leader_card_id),
+      opp_leader_name: getCardName(game.opp_leader_card_id),
       turns: turnsResult.rows,
       coaching_notes: notesResult.rows,
     };
