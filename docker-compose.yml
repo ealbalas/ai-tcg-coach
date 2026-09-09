@@ -20,7 +20,7 @@ services:
       context: packages/api
       dockerfile: Dockerfile
     ports:
-      - "3001:3001"
+      - "3002:3001"
     environment:
       DATABASE_URL: postgres://tcgcoach:tcgcoach@postgres:5432/tcgcoach
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
@@ -37,9 +37,9 @@ services:
       context: packages/web
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3080:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_API_URL: http://localhost:3002
       API_URL: http://api:3001
     depends_on:
       - api
