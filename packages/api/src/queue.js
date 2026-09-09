@@ -71,6 +71,8 @@ async function processCoachingJob(job) {
 
   const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+
     // Look up turn IDs for the game
     const turnsResult = await client.query(
       'SELECT id, turn_number FROM turns WHERE game_id = $1',
@@ -102,7 +104,9 @@ async function processCoachingJob(job) {
     }
 
     await client.query(`UPDATE games SET coaching_status = 'done' WHERE id = $1`, [gameId]);
+    await client.query('COMMIT');
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error(`[coaching-worker] DB write failed for game ${gameId}:`, err);
     await pool.query(`UPDATE games SET coaching_status = 'error' WHERE id = $1`, [gameId]);
   } finally {

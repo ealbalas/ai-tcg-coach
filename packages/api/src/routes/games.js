@@ -7,14 +7,16 @@ import { authenticate } from '../middleware/auth.js';
 import { getCardName } from '../cards.js';
 
 export function buildCoachingSummary(parsed, myPlayer) {
+  const myLeaderId = myPlayer === 1 ? parsed.player1Leader : parsed.player2Leader;
+  const oppLeaderId = myPlayer === 1 ? parsed.player2Leader : parsed.player1Leader;
   return {
     myLeader: {
-      id: parsed.player1Leader,
-      name: getCardName(parsed.player1Leader),
+      id: myLeaderId,
+      name: getCardName(myLeaderId),
     },
     oppLeader: {
-      id: parsed.player2Leader,
-      name: getCardName(parsed.player2Leader),
+      id: oppLeaderId,
+      name: getCardName(oppLeaderId),
     },
     myPlayerNumber: myPlayer,
     turns: parsed.turns.map((t) => ({
