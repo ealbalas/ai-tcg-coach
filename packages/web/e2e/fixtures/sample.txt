@@ -1,0 +1,8 @@
+Waiting for a Connection with Room ID:W8Q7JKN
+TestUser1#1234 Has Connected
+Version is 1.43a.1
+[TestUser1#1234] Leader is Monkey D. Luffy ["OP16-022">OP16-022]
+TestUser2#5678 Has Connected
+[TestUser2#5678] Chose to go Second
+RZ1|1|1|OP16-022|play
+RZ1|CHK|1|1|5|10|0
