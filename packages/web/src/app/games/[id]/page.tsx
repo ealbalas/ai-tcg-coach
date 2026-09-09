@@ -167,6 +167,7 @@ export default function GameDetailPage() {
     if (note.severity in counts) counts[note.severity as keyof typeof counts]++;
   }
 
+  const perTurnNotes = coaching_notes.filter((n) => n.turn_id);
   const turnsWithNotes = turns.filter((t) => (notesByTurnId.get(t.id) ?? []).length > 0).length;
 
   return (
@@ -232,9 +233,13 @@ export default function GameDetailPage() {
             <p className="text-green-400 text-sm">No coaching notes - clean game!</p>
           ) : (
             <>
-              <p className="text-gray-400 text-sm mb-3">
-                You have {coaching_notes.length} coaching note{coaching_notes.length !== 1 ? 's' : ''} across {turnsWithNotes} turn{turnsWithNotes !== 1 ? 's' : ''}.
-              </p>
+              {perTurnNotes.length > 0 ? (
+                <p className="text-gray-400 text-sm mb-3">
+                  You have {perTurnNotes.length} coaching note{perTurnNotes.length !== 1 ? 's' : ''} across {turnsWithNotes} turn{turnsWithNotes !== 1 ? 's' : ''}.
+                </p>
+              ) : (
+                <p className="text-gray-400 text-sm mb-3">No per-turn coaching notes.</p>
+              )}
               <div className="flex gap-3 flex-wrap">
                 {counts.critical > 0 && (
                   <div className="bg-red-950 border border-red-700 text-red-300 rounded-lg px-4 py-2 text-sm">
