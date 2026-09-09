@@ -19,6 +19,14 @@ function severityLabel(severity: string) {
 }
 
 function NoteBadge({ note }: { note: CoachingNote }) {
+  if (note.layer === 'system') {
+    return (
+      <div className="border rounded-lg px-3 py-2 text-sm bg-slate-900 border-slate-600 text-slate-400">
+        <span className="font-semibold mr-1 text-slate-500">&#x2139; System</span>
+        {note.text}
+      </div>
+    );
+  }
   return (
     <div className={`border rounded-lg px-3 py-2 text-sm ${severityStyle(note.severity)}`}>
       <span className="font-semibold mr-1">[{severityLabel(note.severity)}]</span>

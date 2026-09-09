@@ -8,6 +8,13 @@ import { getCardName } from '../cards.js';
 
 const LOG_DIR = process.env.LOG_DIR || './data/logs';
 
+function deriveResult(parsed, myPlayer) {
+  if (parsed.disconnectedPlayer != null) {
+    return parsed.disconnectedPlayer === myPlayer ? 'loss' : 'win';
+  }
+  return 'unknown';
+}
+
 export async function gamesRoutes(fastify, opts = {}) {
   const db = opts.pool ?? pool;
 
@@ -54,7 +61,7 @@ export async function gamesRoutes(fastify, opts = {}) {
           parsed.player1Leader,
           parsed.player2Leader,
           parsed.player1GoesFirst === true ? true : (parsed.player1GoesFirst === false ? false : null),
-          'unknown',
+          deriveResult(parsed, myPlayer),
           'pending',
           parsed.version,
           parsed.roomId,
@@ -102,6 +109,17 @@ export async function gamesRoutes(fastify, opts = {}) {
           [game.id, turnId ?? null, 'rule', note.severity, note.text],
         );
         insertedNotes.push(noteResult.rows[0]);
+      }
+
+      // Insert system note for dirty logs
+      if (parsed.hadPartialPreviousGame) {
+        const sysNoteResult = await client.query(
+          `INSERT INTO coaching_notes (game_id, turn_id, layer, severity, text)
+           VALUES ($1, NULL, 'system', 'info', $2)
+           RETURNING *`,
+          [game.id, 'This log file contained data from a previous session. Only the most recent game was analyzed.'],
+        );
+        insertedNotes.push(sysNoteResult.rows[0]);
       }
 
       // Update coaching status
