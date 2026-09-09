@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: tcgcoach
+      POSTGRES_USER: tcgcoach
+      POSTGRES_PASSWORD: tcgcoach
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tcgcoach"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: packages/api
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgres://tcgcoach:tcgcoach@postgres:5432/tcgcoach
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      LOG_DIR: /app/data/logs
+      PORT: 3001
+    volumes:
+      - ./data/logs:/app/data/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: packages/web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      API_URL: http://api:3001
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:

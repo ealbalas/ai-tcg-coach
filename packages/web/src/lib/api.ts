@@ -1,0 +1,114 @@
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+function getToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('tcg_token');
+}
+
+export function setToken(token: string): void {
+  localStorage.setItem('tcg_token', token);
+}
+
+export function clearToken(): void {
+  localStorage.removeItem('tcg_token');
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || res.statusText);
+  }
+  return res.json() as Promise<T>;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: { id: string; email: string };
+}
+
+export async function register(email: string, password: string): Promise<AuthResponse> {
+  return request<AuthResponse>('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function login(email: string, password: string): Promise<AuthResponse> {
+  return request<AuthResponse>('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export interface GameSummary {
+  id: string;
+  uploaded_at: string;
+  my_leader_card_id: string | null;
+  opp_leader_card_id: string | null;
+  went_first: boolean | null;
+  result: 'win' | 'loss' | 'unknown';
+  coaching_status: string;
+}
+
+export async function listGames(): Promise<{ games: GameSummary[] }> {
+  return request<{ games: GameSummary[] }>('/api/games');
+}
+
+export interface CoachingNote {
+  id: string;
+  game_id: string;
+  turn_id: string | null;
+  layer: string;
+  severity: 'info' | 'warning' | 'critical';
+  text: string;
+  created_at: string;
+}
+
+export interface Turn {
+  id: string;
+  game_id: string;
+  turn_number: number;
+  player: number;
+  actions_json: unknown;
+  board_state_json: unknown;
+}
+
+export interface GameDetail {
+  game: {
+    id: string;
+    uploaded_at: string;
+    played_at: string | null;
+    my_leader_card_id: string | null;
+    opp_leader_card_id: string | null;
+    went_first: boolean | null;
+    result: 'win' | 'loss' | 'unknown';
+    coaching_status: string;
+    optcgsim_version: string | null;
+    room_id: string | null;
+  };
+  turns: Turn[];
+  coaching_notes: CoachingNote[];
+}
+
+export async function getGame(id: string): Promise<GameDetail> {
+  return request<GameDetail>(`/api/games/${id}`);
+}
+
+export async function uploadGame(file: File): Promise<{ game_id: string; game: GameSummary }> {
+  const form = new FormData();
+  form.append('log', file);
+  return request<{ game_id: string; game: GameSummary }>('/api/games/upload', {
+    method: 'POST',
+    body: form,
+  });
+}
