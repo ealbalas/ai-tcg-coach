@@ -146,15 +146,24 @@ function checkLeaderRecognition(parsedLog, myPlayer) {
   if (!name) return [];
 
   const setCode = myLeaderId.split('-')[0];
-  const setNumber = parseInt(setCode.replace(/[^0-9]/g, ''), 10);
 
   let tip;
-  if (!isNaN(setNumber) && setNumber >= 1 && setNumber <= 5) {
-    tip = 'Classic set leader - foundational strategies apply. ' +
-      'Study the core mechanics and basic deck archetypes for this leader.';
+  if (setCode.startsWith('OP')) {
+    const setNumber = parseInt(setCode.slice(2), 10);
+    if (!isNaN(setNumber) && setNumber <= 5) {
+      tip = 'Classic set leader - foundational strategies apply. ' +
+        'Study the core mechanics and basic deck archetypes for this leader.';
+    } else {
+      tip = 'Newer set leader - keep up with the evolving meta. ' +
+        'Check recent tournament results for current optimal lines.';
+    }
+  } else if (setCode.startsWith('ST')) {
+    tip = 'Starter deck leader - solid foundation for learning the game.';
   } else {
-    tip = 'Newer set leader - keep up with the evolving meta. ' +
-      'Check recent tournament results for current optimal lines.';
+    return [{
+      severity: 'info',
+      text: `Leader recognized: ${name} (${myLeaderId}).`,
+    }];
   }
 
   return [{
