@@ -74,12 +74,18 @@ export interface CoachingNote {
   created_at: string;
 }
 
+export interface Action {
+  seq: number;
+  cardId: string;
+  cardName?: string | null;
+}
+
 export interface Turn {
   id: string;
   game_id: string;
   turn_number: number;
   player: number;
-  actions_json: unknown;
+  actions_json: Action[];
   board_state_json: unknown;
 }
 
@@ -113,4 +119,8 @@ export async function uploadGame(file: File): Promise<{ game_id: string; game: G
     method: 'POST',
     body: form,
   });
+}
+
+export async function getCoachingStatus(id: string): Promise<{ coaching_status: string }> {
+  return request<{ coaching_status: string }>(`/api/games/${id}/coaching-status`);
 }
