@@ -28,7 +28,7 @@ packages/web/   Next.js 14 + Tailwind frontend (TypeScript)
 data/logs/      Raw uploaded log files, one per game (volume-mounted in Docker)
 ```
 
-Migrations run automatically at API startup via `packages/api/src/migrate.js` applying `packages/api/migrations/001_initial.sql`.
+Migrations run automatically at API startup (`packages/api/src/index.js`) applying `packages/api/migrations/001_initial.sql`.
 
 ## OPTCGSim log format
 
