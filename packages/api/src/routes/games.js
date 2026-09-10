@@ -165,7 +165,8 @@ export async function gamesRoutes(fastify, opts = {}) {
           });
         } catch (queueErr) {
           fastify.log.warn({ err: queueErr }, 'Failed to enqueue coaching job');
-          await db.query(`UPDATE games SET coaching_status = 'error' WHERE id = $1`, [game.id]);
+          await db.query(`UPDATE games SET coaching_status = 'error' WHERE id = $1`, [game.id])
+            .catch((e) => fastify.log.warn({ err: e }, 'Failed to update coaching_status to error'));
           game.coaching_status = 'error';
         }
       }
