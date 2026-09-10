@@ -73,7 +73,8 @@ async function processCoachingJob(job) {
     llmResult = JSON.parse(jsonMatch[0]);
   } catch (err) {
     console.error(`[coaching-worker] LLM call failed for game ${gameId}:`, err);
-    await pool.query(`UPDATE games SET coaching_status = 'error' WHERE id = $1`, [gameId]);
+    await pool.query(`UPDATE games SET coaching_status = 'error' WHERE id = $1`, [gameId])
+      .catch((e) => console.error('[coaching-worker] Failed to update status to error:', e));
     return;
   }
 
@@ -117,7 +118,8 @@ async function processCoachingJob(job) {
   } catch (err) {
     if (client) await client.query('ROLLBACK').catch(() => {});
     console.error(`[coaching-worker] DB write failed for game ${gameId}:`, err);
-    await pool.query(`UPDATE games SET coaching_status = 'error' WHERE id = $1`, [gameId]);
+    await pool.query(`UPDATE games SET coaching_status = 'error' WHERE id = $1`, [gameId])
+      .catch((e) => console.error('[coaching-worker] Failed to update status to error:', e));
   } finally {
     if (client) client.release();
   }
