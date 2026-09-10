@@ -97,6 +97,14 @@ describe('buildCoachingSummary', () => {
     assert.strictEqual(summary.oppLeader.id, null);
     assert.strictEqual(summary.oppLeader.name, null);
   });
+
+  it('swaps leaders when myPlayer is 2', () => {
+    const parsed = makeParsed({ player1Leader: 'ST01-001', player2Leader: 'ST02-001', turns: [] });
+    const summary = buildCoachingSummary(parsed, 2);
+    assert.strictEqual(summary.myLeader.id, 'ST02-001');
+    assert.strictEqual(summary.oppLeader.id, 'ST01-001');
+    assert.strictEqual(summary.myPlayerNumber, 2);
+  });
 });
 
 // --- GET /api/games/:id/coaching-status ---

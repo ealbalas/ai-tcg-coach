@@ -6,10 +6,13 @@ const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
 function redisConnection() {
   const url = new URL(REDIS_URL);
-  return {
+  const opts = {
     host: url.hostname,
     port: parseInt(url.port || '6379', 10),
   };
+  if (url.username) opts.username = url.username;
+  if (url.password) opts.password = url.password;
+  return opts;
 }
 
 export const coachingQueue = new Queue('coaching', { connection: redisConnection() });
