@@ -34,7 +34,8 @@ try {
   await runMigrations();
   // Non-blocking: warn and continue if card data cannot be fetched
   loadCards().catch((err) => fastify.log.warn({ err }, 'Failed to load card data'));
-  startWorker();
+  const worker = startWorker();
+  fastify.addHook('onClose', async () => { await worker.close(); });
   await fastify.listen({ port: PORT, host: '0.0.0.0' });
 } catch (err) {
   fastify.log.error(err);
