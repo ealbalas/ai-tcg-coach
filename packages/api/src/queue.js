@@ -10,8 +10,8 @@ function redisConnection() {
     host: url.hostname,
     port: parseInt(url.port || '6379', 10),
   };
-  if (url.username) opts.username = url.username;
-  if (url.password) opts.password = url.password;
+  if (url.username) opts.username = decodeURIComponent(url.username);
+  if (url.password) opts.password = decodeURIComponent(url.password);
   return opts;
 }
 
