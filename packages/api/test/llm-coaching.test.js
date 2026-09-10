@@ -73,6 +73,7 @@ describe('buildCoachingSummary', () => {
     for (const card of cards) {
       assert.ok('id' in card, 'card must have id');
       assert.ok('name' in card, 'card must have name');
+      assert.ok('type' in card, 'card must have type');
     }
     // ST01-001 should resolve from fallback or remote
     assert.ok(
@@ -310,6 +311,7 @@ describe('GET /api/games/:id - actions enriched with cardName', () => {
     assert.ok(Array.isArray(actions), 'actions_json must be array');
     assert.strictEqual(actions.length, 1);
     assert.ok('cardName' in actions[0], 'action must have cardName field');
+    assert.ok('cardType' in actions[0], 'action must have cardType field');
     assert.strictEqual(actions[0].cardId, 'ST01-001');
 
     await app.close();

@@ -101,7 +101,7 @@ async function processCoachingJob(job) {
     // Per-turn notes
     if (Array.isArray(llmResult.turns)) {
       for (const t of llmResult.turns) {
-        const turnId = turnIdByNumber.get(t.turnNumber) ?? null;
+        const turnId = turnIdByNumber.get(Number(t.turnNumber)) ?? null;
         if (t.feedback) {
           await client.query(
             `INSERT INTO coaching_notes (game_id, turn_id, layer, severity, text)
