@@ -21,7 +21,12 @@ function buildPrompt(summary) {
   const turnLines = summary.turns
     .filter((t) => t.isMyTurn)
     .map((t) => {
-      const cardList = t.cards.map((c) => c.name ?? c.id).join(', ') || 'nothing recorded';
+      const cardList = t.cards
+        .map((c) => {
+          const label = c.name ?? c.id;
+          return c.type ? `${label} [${c.type}]` : label;
+        })
+        .join(', ') || 'nothing recorded';
       return `Turn ${t.turnNumber} (Mine): played ${cardList}`;
     })
     .join('\n');
@@ -72,8 +77,9 @@ async function processCoachingJob(job) {
     return;
   }
 
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
 
     // Look up turn IDs for the game
@@ -109,11 +115,11 @@ async function processCoachingJob(job) {
     await client.query(`UPDATE games SET coaching_status = 'done' WHERE id = $1`, [gameId]);
     await client.query('COMMIT');
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    if (client) await client.query('ROLLBACK').catch(() => {});
     console.error(`[coaching-worker] DB write failed for game ${gameId}:`, err);
     await pool.query(`UPDATE games SET coaching_status = 'error' WHERE id = $1`, [gameId]);
   } finally {
-    client.release();
+    if (client) client.release();
   }
 }
 

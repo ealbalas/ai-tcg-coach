@@ -56,7 +56,12 @@ function TurnActions({ actions, isMyTurn }: { actions: Action[]; isMyTurn: boole
           <div className="flex flex-col min-w-0">
             {a.cardName ? (
               <>
-                <span className="text-gray-100 font-medium">{a.cardName}</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {a.cardType && (
+                    <span className="text-xs text-purple-400 font-mono">[{a.cardType}]</span>
+                  )}
+                  <span className="text-gray-100 font-medium">{a.cardName}</span>
+                </div>
                 <span className="font-mono text-xs text-gray-500">{a.cardId}</span>
               </>
             ) : (

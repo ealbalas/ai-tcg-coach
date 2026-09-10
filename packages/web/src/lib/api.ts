@@ -78,6 +78,7 @@ export interface Action {
   seq: number;
   cardId: string;
   cardName?: string | null;
+  cardType?: string | null;
 }
 
 export interface Turn {

@@ -10,7 +10,7 @@ const REMOTE_URLS = [
   'https://raw.githubusercontent.com/optcg-community/card-db/main/cards.json',
 ];
 
-/** @type {Map<string, string>} */
+/** @type {Map<string, {name: string, type: string | null}>} */
 const cardNameCache = new Map();
 
 const FALLBACK_LEADERS = new Map([
@@ -71,9 +71,9 @@ const FALLBACK_LEADERS = new Map([
 
 /**
  * Try to normalize a card entry from various community JSON formats.
- * Returns {id, name} or null.
+ * Returns {id, name, type} or null.
  * @param {unknown} entry
- * @returns {{ id: string; name: string } | null}
+ * @returns {{ id: string; name: string; type: string | null } | null}
  */
 function normalizeEntry(entry) {
   if (!entry || typeof entry !== 'object') return null;
@@ -86,7 +86,12 @@ function normalizeEntry(entry) {
     typeof e.name === 'string' ? e.name :
     typeof e.card_name === 'string' ? e.card_name :
     typeof e.cardName === 'string' ? e.cardName : null;
-  if (id && name) return { id, name };
+  const type =
+    typeof e.type === 'string' ? e.type :
+    typeof e.card_type === 'string' ? e.card_type :
+    typeof e.cardType === 'string' ? e.cardType :
+    typeof e.category === 'string' ? e.category : null;
+  if (id && name) return { id, name, type };
   return null;
 }
 
@@ -105,7 +110,7 @@ async function tryLoadFromUrl(url) {
     for (const entry of entries) {
       const normalized = normalizeEntry(entry);
       if (normalized) {
-        cardNameCache.set(normalized.id, normalized.name);
+        cardNameCache.set(normalized.id, { name: normalized.name, type: normalized.type });
         count++;
       }
     }
@@ -130,7 +135,7 @@ export async function loadCards() {
 
   console.warn('[cards] Could not load remote card data; using fallback leader map');
   for (const [id, name] of FALLBACK_LEADERS) {
-    cardNameCache.set(id, name);
+    cardNameCache.set(id, { name, type: 'Leader' });
   }
 }
 
@@ -141,5 +146,15 @@ export async function loadCards() {
  */
 export function getCardName(cardId) {
   if (!cardId) return null;
-  return cardNameCache.get(cardId) ?? null;
+  return cardNameCache.get(cardId)?.name ?? null;
+}
+
+/**
+ * Return the card type for a given card ID, or null if unknown.
+ * @param {string | null | undefined} cardId
+ * @returns {string | null}
+ */
+export function getCardType(cardId) {
+  if (!cardId) return null;
+  return cardNameCache.get(cardId)?.type ?? null;
 }
