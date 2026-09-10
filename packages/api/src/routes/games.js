@@ -157,13 +157,13 @@ export async function gamesRoutes(fastify, opts = {}) {
       // Enqueue LLM coaching job (non-blocking; do not block the response on this)
       if (coachingQueue) {
         try {
+          await db.query(`UPDATE games SET coaching_status = 'analyzing' WHERE id = $1`, [game.id]);
+          game.coaching_status = 'analyzing';
           await coachingQueue.add('analyze', {
             gameId: game.id,
             userId: request.userId,
             parsedSummary: buildCoachingSummary(parsed, myPlayer),
           });
-          await db.query(`UPDATE games SET coaching_status = 'analyzing' WHERE id = $1`, [game.id]);
-          game.coaching_status = 'analyzing';
         } catch (queueErr) {
           fastify.log.warn({ err: queueErr }, 'Failed to enqueue coaching job');
           await db.query(`UPDATE games SET coaching_status = 'error' WHERE id = $1`, [game.id]);

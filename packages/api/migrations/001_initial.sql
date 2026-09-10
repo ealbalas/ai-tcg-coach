@@ -37,8 +37,12 @@ CREATE TABLE IF NOT EXISTS coaching_notes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   game_id UUID REFERENCES games(id) ON DELETE CASCADE,
   turn_id UUID REFERENCES turns(id) ON DELETE CASCADE,
-  layer TEXT NOT NULL CHECK (layer IN ('rule', 'llm')),
+  layer TEXT NOT NULL CHECK (layer IN ('rule', 'llm', 'system')),
   severity TEXT CHECK (severity IN ('info', 'warning', 'critical')),
   text TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+ALTER TABLE coaching_notes
+  DROP CONSTRAINT IF EXISTS coaching_notes_layer_check,
+  ADD CONSTRAINT coaching_notes_layer_check CHECK (layer IN ('rule', 'llm', 'system'));
