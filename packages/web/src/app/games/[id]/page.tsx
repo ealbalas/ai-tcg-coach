@@ -168,8 +168,8 @@ export default function GameDetailPage() {
       try {
         const { coaching_status } = await getCoachingStatus(id);
         if (coaching_status === 'done') {
-          clearInterval(interval);
           const fresh = await getGame(id);
+          clearInterval(interval);
           setDetail(fresh);
         } else if (coaching_status === 'error') {
           clearInterval(interval);
