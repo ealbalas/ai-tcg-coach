@@ -5,6 +5,7 @@ import { pool } from './db.js';
 import { authRoutes } from './routes/auth.js';
 import { gamesRoutes } from './routes/games.js';
 import { loadCards } from './cards.js';
+import { coachingQueue, startWorker } from './queue.js';
 
 const fastify = Fastify({ logger: true });
 
@@ -14,7 +15,7 @@ await fastify.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } }); /
 fastify.get('/health', async () => ({ ok: true }));
 
 await fastify.register(authRoutes);
-await fastify.register(gamesRoutes);
+await fastify.register(gamesRoutes, { coachingQueue });
 
 // Run migrations on startup
 async function runMigrations() {
@@ -33,6 +34,8 @@ try {
   await runMigrations();
   // Non-blocking: warn and continue if card data cannot be fetched
   loadCards().catch((err) => fastify.log.warn({ err }, 'Failed to load card data'));
+  const worker = startWorker();
+  fastify.addHook('onClose', async () => { await worker.close(); });
   await fastify.listen({ port: PORT, host: '0.0.0.0' });
 } catch (err) {
   fastify.log.error(err);

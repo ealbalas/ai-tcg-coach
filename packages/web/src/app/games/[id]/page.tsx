@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { getGame, type GameDetail, type CoachingNote, type Turn } from '@/lib/api';
+import { getGame, getCoachingStatus, type GameDetail, type CoachingNote, type Turn, type Action } from '@/lib/api';
 import { isLoggedIn } from '@/lib/auth';
 
 function severityStyle(severity: string) {
@@ -27,6 +27,14 @@ function NoteBadge({ note }: { note: CoachingNote }) {
       </div>
     );
   }
+  if (note.layer === 'llm') {
+    return (
+      <div className="border rounded-lg px-3 py-2 text-sm bg-violet-950 border-violet-700 text-violet-200">
+        <span className="font-semibold mr-1">[AI Coach]</span>
+        {note.text}
+      </div>
+    );
+  }
   return (
     <div className={`border rounded-lg px-3 py-2 text-sm ${severityStyle(note.severity)}`}>
       <span className="font-semibold mr-1">[{severityLabel(note.severity)}]</span>
@@ -35,23 +43,31 @@ function NoteBadge({ note }: { note: CoachingNote }) {
   );
 }
 
-interface Action {
-  cardId: string;
-  seq: number;
-}
-
-function TurnActions({ actions, isMyTurn }: { actions: unknown; isMyTurn: boolean }) {
+function TurnActions({ actions, isMyTurn }: { actions: Action[]; isMyTurn: boolean }) {
   if (!Array.isArray(actions) || actions.length === 0) {
     return <p className="text-xs text-gray-500 italic mt-1">No actions recorded.</p>;
   }
   return (
     <div className="mt-2 space-y-1">
-      {(actions as Action[]).map((a) => (
-        <div key={a.seq} className="flex items-center gap-2 text-sm">
-          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isMyTurn ? 'bg-blue-400' : 'bg-red-400'}`} />
-          <span className="text-gray-400 text-xs w-10 flex-shrink-0">[{a.seq}]</span>
-          <span className="text-gray-300">Played </span>
-          <span className="font-mono text-xs text-gray-100 bg-gray-700 px-1.5 py-0.5 rounded">{a.cardId}</span>
+      {actions.map((a) => (
+        <div key={a.seq} className="flex items-start gap-2 text-sm">
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1 ${isMyTurn ? 'bg-blue-400' : 'bg-red-400'}`} />
+          <span className="text-gray-400 text-xs w-10 flex-shrink-0 mt-0.5">[{a.seq}]</span>
+          <div className="flex flex-col min-w-0">
+            {a.cardName ? (
+              <>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {a.cardType && (
+                    <span className="text-xs text-purple-400 font-mono">[{a.cardType}]</span>
+                  )}
+                  <span className="text-gray-100 font-medium">{a.cardName}</span>
+                </div>
+                <span className="font-mono text-xs text-gray-500">{a.cardId}</span>
+              </>
+            ) : (
+              <span className="font-mono text-xs text-gray-100 bg-gray-700 px-1.5 py-0.5 rounded self-start">{a.cardId}</span>
+            )}
+          </div>
         </div>
       ))}
     </div>
@@ -121,6 +137,8 @@ function deriveMyPlayer(_game: GameDetail['game']): number {
   return 1;
 }
 
+const POLLING_STATUSES = new Set(['pending', 'analyzing']);
+
 export default function GameDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -139,6 +157,33 @@ export default function GameDetailPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [id, router]);
+
+  // Poll coaching status while pending/analyzing
+  useEffect(() => {
+    if (!detail) return;
+    const status = detail.game.coaching_status;
+    if (!POLLING_STATUSES.has(status)) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const { coaching_status } = await getCoachingStatus(id);
+        if (coaching_status === 'done') {
+          const fresh = await getGame(id);
+          clearInterval(interval);
+          setDetail(fresh);
+        } else if (coaching_status === 'error') {
+          clearInterval(interval);
+          setDetail((prev) =>
+            prev ? { ...prev, game: { ...prev.game, coaching_status: 'error' } } : prev,
+          );
+        }
+      } catch {
+        // ignore transient poll errors
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [id, detail?.game.coaching_status]);
 
   if (loading) {
     return (
@@ -233,6 +278,19 @@ export default function GameDetailPage() {
             <p className="text-xs text-gray-600">Room ID: {game.room_id} | Version: {game.optcgsim_version}</p>
           )}
         </section>
+
+        {/* AI coaching status banner */}
+        {POLLING_STATUSES.has(game.coaching_status) && (
+          <section className="bg-violet-950 border border-violet-800 rounded-xl px-5 py-3 flex items-center gap-3">
+            <span className="inline-block w-2 h-2 rounded-full bg-violet-400 animate-pulse flex-shrink-0" />
+            <p className="text-violet-200 text-sm">AI coaching is being prepared...</p>
+          </section>
+        )}
+        {game.coaching_status === 'error' && (
+          <section className="bg-gray-900 border border-gray-700 rounded-xl px-5 py-3">
+            <p className="text-gray-500 text-sm">AI coaching unavailable for this game.</p>
+          </section>
+        )}
 
         {/* Coaching summary */}
         <section className="bg-gray-900 border border-gray-800 rounded-xl p-5">

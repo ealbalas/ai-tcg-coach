@@ -15,10 +15,14 @@ CREATE TABLE IF NOT EXISTS games (
   went_first BOOLEAN,
   result TEXT CHECK (result IN ('win', 'loss', 'unknown')),
   raw_log_path TEXT,
-  coaching_status TEXT DEFAULT 'pending' CHECK (coaching_status IN ('pending', 'heuristic_complete', 'complete')),
+  coaching_status TEXT DEFAULT 'pending' CHECK (coaching_status IN ('pending', 'analyzing', 'heuristic_complete', 'complete', 'done', 'error')),
   optcgsim_version TEXT,
   room_id TEXT
 );
+
+ALTER TABLE games
+  DROP CONSTRAINT IF EXISTS games_coaching_status_check,
+  ADD CONSTRAINT games_coaching_status_check CHECK (coaching_status IN ('pending', 'analyzing', 'heuristic_complete', 'complete', 'done', 'error'));
 
 CREATE TABLE IF NOT EXISTS turns (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -33,8 +37,12 @@ CREATE TABLE IF NOT EXISTS coaching_notes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   game_id UUID REFERENCES games(id) ON DELETE CASCADE,
   turn_id UUID REFERENCES turns(id) ON DELETE CASCADE,
-  layer TEXT NOT NULL CHECK (layer IN ('rule', 'llm')),
+  layer TEXT NOT NULL CHECK (layer IN ('rule', 'llm', 'system')),
   severity TEXT CHECK (severity IN ('info', 'warning', 'critical')),
   text TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+ALTER TABLE coaching_notes
+  DROP CONSTRAINT IF EXISTS coaching_notes_layer_check,
+  ADD CONSTRAINT coaching_notes_layer_check CHECK (layer IN ('rule', 'llm', 'system'));

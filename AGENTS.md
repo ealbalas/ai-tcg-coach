@@ -18,7 +18,8 @@ docker compose up         # builds everything and starts postgres + api + web
 - Frontend: http://localhost:3000
 - API: http://localhost:3001/health
 
-For local iteration without Docker: start `docker compose up postgres`, then `npm run dev` in each package with the env vars from `.env.example`.
+For local iteration without Docker: start `docker compose up postgres redis`, then `npm run dev` in each package with the env vars from `.env.example`.
+Set `ANTHROPIC_API_KEY` in the environment for LLM coaching to work.
 
 ## Project structure
 
@@ -68,6 +69,7 @@ The parser stores all unknown fields raw so they can be reinterpreted once riche
 Implementation: `packages/api/src/cards.js`
 `loadCards()` is called non-blocking at startup: it tries two remote community JSON URLs, falls back to a hardcoded leader map if both fail.
 `getCardName(cardId)` returns the cached name or `null`.
+`getCardType(cardId)` returns the cached type string (e.g. `"Leader"`, `"Character"`, `"DON!!"`) or `null`.
 The startup race window (requests arriving before the cache is warm) is accepted: coaching notes written during that window will simply lack a leader-recognition note.
 
 ## Heuristic coaching engine
@@ -86,3 +88,21 @@ Heuristics intentionally skipped (and why):
 - **No attacks made**: same - attack action codes are not confirmed from available samples.
 
 Future work: collect real in-game OPTCGSim logs that include attacks, DON!!, and main-phase card plays, then update the parser field documentation and enable the skipped heuristics.
+
+## LLM coaching pipeline
+
+Implementation: `packages/api/src/queue.js`
+BullMQ queue named `'coaching'` backed by Redis (`REDIS_URL` env var, default `redis://localhost:6379`).
+Requires `ioredis` as a peer dependency (installed).
+
+Upload flow: after heuristic notes are committed, a job is enqueued and `coaching_status` set to `'analyzing'`.
+Worker: calls claude-sonnet-4-6 via `@anthropic-ai/sdk`, parses JSON response, inserts `layer='llm'` notes, sets status `'done'` (or `'error'`).
+
+**Queue injection pattern:** `gamesRoutes` accepts `opts.coachingQueue` (injected from `index.js`).
+Tests omit this option so no Redis connection is opened - do not import from `queue.js` in test files.
+
+`GET /api/games/:id` enriches each action in `actions_json` with `cardName: string | null` and `cardType: string | null` at response time (not stored in DB).
+`GET /api/games/:id/coaching-status` returns current `coaching_status` for polling.
+
+Frontend polls every 5 s while status is `'pending'` or `'analyzing'`; refetches full game on `'done'`.
+LLM notes (`layer='llm'`) render with purple/violet styling and "AI Coach" label instead of severity.

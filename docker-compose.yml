@@ -15,6 +15,16 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build:
       context: packages/api
@@ -26,10 +36,15 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       LOG_DIR: /app/data/logs
       PORT: 3001
+      REDIS_URL: redis://redis:6379
+      # Required for LLM coaching - set ANTHROPIC_API_KEY in your environment
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
     volumes:
       - ./data/logs:/app/data/logs
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   web:

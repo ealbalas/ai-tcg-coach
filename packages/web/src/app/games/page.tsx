@@ -7,11 +7,20 @@ import { listGames, uploadGame, type GameSummary } from '@/lib/api';
 import { isLoggedIn, logout, getEmail } from '@/lib/auth';
 
 function statusBadge(status: string) {
+  if (status === 'done') {
+    return <span className="text-xs bg-violet-900 text-violet-300 px-2 py-0.5 rounded-full">AI Coached</span>;
+  }
   if (status === 'heuristic_complete') {
     return <span className="text-xs bg-green-900 text-green-300 px-2 py-0.5 rounded-full">Coached</span>;
   }
+  if (status === 'analyzing') {
+    return <span className="text-xs bg-blue-900 text-blue-300 px-2 py-0.5 rounded-full">Analyzing...</span>;
+  }
   if (status === 'pending') {
     return <span className="text-xs bg-yellow-900 text-yellow-300 px-2 py-0.5 rounded-full">Pending</span>;
+  }
+  if (status === 'error') {
+    return <span className="text-xs bg-red-900 text-red-300 px-2 py-0.5 rounded-full">Error</span>;
   }
   return <span className="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full">{status}</span>;
 }

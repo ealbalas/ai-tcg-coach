@@ -4,7 +4,28 @@ import { pool } from '../db.js';
 import { parseLog } from '../parser.js';
 import { runHeuristics } from '../coaching.js';
 import { authenticate } from '../middleware/auth.js';
-import { getCardName } from '../cards.js';
+import { getCardName, getCardType } from '../cards.js';
+
+export function buildCoachingSummary(parsed, myPlayer) {
+  const myLeaderId = myPlayer === 1 ? parsed.player1Leader : parsed.player2Leader;
+  const oppLeaderId = myPlayer === 1 ? parsed.player2Leader : parsed.player1Leader;
+  return {
+    myLeader: {
+      id: myLeaderId,
+      name: getCardName(myLeaderId),
+    },
+    oppLeader: {
+      id: oppLeaderId,
+      name: getCardName(oppLeaderId),
+    },
+    myPlayerNumber: myPlayer,
+    turns: parsed.turns.map((t) => ({
+      turnNumber: t.turnNumber,
+      isMyTurn: t.player === myPlayer,
+      cards: t.actions.map((a) => ({ id: a.cardId, name: getCardName(a.cardId), type: getCardType(a.cardId) })),
+    })),
+  };
+}
 
 const LOG_DIR = process.env.LOG_DIR || './data/logs';
 
@@ -17,6 +38,8 @@ function deriveResult(parsed, myPlayer) {
 
 export async function gamesRoutes(fastify, opts = {}) {
   const db = opts.pool ?? pool;
+  // coachingQueue injected from index.js; undefined in tests (skips LLM enqueue)
+  const coachingQueue = opts.coachingQueue ?? null;
 
   fastify.post('/api/games/upload', {
     preHandler: authenticate,
@@ -131,6 +154,23 @@ export async function gamesRoutes(fastify, opts = {}) {
 
       await client.query('COMMIT');
 
+      // Enqueue LLM coaching job (non-blocking; do not block the response on this)
+      if (coachingQueue) {
+        try {
+          await db.query(`UPDATE games SET coaching_status = 'analyzing' WHERE id = $1`, [game.id]);
+          game.coaching_status = 'analyzing';
+          await coachingQueue.add('analyze', {
+            gameId: game.id,
+            parsedSummary: buildCoachingSummary(parsed, myPlayer),
+          });
+        } catch (queueErr) {
+          fastify.log.warn({ err: queueErr }, 'Failed to enqueue coaching job');
+          await db.query(`UPDATE games SET coaching_status = 'error' WHERE id = $1`, [game.id])
+            .catch((e) => fastify.log.warn({ err: e }, 'Failed to update coaching_status to error'));
+          game.coaching_status = 'error';
+        }
+      }
+
       return reply.status(201).send({
         game_id: game.id,
         game: {
@@ -185,12 +225,38 @@ export async function gamesRoutes(fastify, opts = {}) {
       [id],
     );
 
+    const enrichedTurns = turnsResult.rows.map((turn) => {
+      const actions = Array.isArray(turn.actions_json) ? turn.actions_json : [];
+      return {
+        ...turn,
+        actions_json: actions.map((a) => ({
+          ...a,
+          cardName: getCardName(a.cardId) ?? null,
+          cardType: getCardType(a.cardId) ?? null,
+        })),
+      };
+    });
+
     return {
       game,
       my_leader_name: getCardName(game.my_leader_card_id),
       opp_leader_name: getCardName(game.opp_leader_card_id),
-      turns: turnsResult.rows,
+      turns: enrichedTurns,
       coaching_notes: notesResult.rows,
     };
+  });
+
+  fastify.get('/api/games/:id/coaching-status', {
+    preHandler: authenticate,
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const result = await db.query(
+      'SELECT coaching_status FROM games WHERE id = $1 AND user_id = $2',
+      [id, request.userId],
+    );
+    if (result.rows.length === 0) {
+      return reply.status(404).send({ error: 'Game not found' });
+    }
+    return { coaching_status: result.rows[0].coaching_status };
   });
 }
