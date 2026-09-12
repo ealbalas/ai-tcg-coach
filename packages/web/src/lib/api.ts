@@ -137,15 +137,6 @@ export interface CardEntry {
   attribute: string | null;
 }
 
-export async function getCards(params?: {
-  q?: string;
-  type?: string;
-  color?: string;
-}): Promise<{ cards: CardEntry[]; total: number }> {
-  const qs = new URLSearchParams();
-  if (params?.q) qs.set('q', params.q);
-  if (params?.type) qs.set('type', params.type);
-  if (params?.color) qs.set('color', params.color);
-  const query = qs.toString() ? `?${qs.toString()}` : '';
-  return request<{ cards: CardEntry[]; total: number }>(`/api/cards${query}`);
+export async function getCards(): Promise<{ cards: CardEntry[]; total: number }> {
+  return request<{ cards: CardEntry[]; total: number }>('/api/cards');
 }

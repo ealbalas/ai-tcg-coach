@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getCards, type CardEntry } from '@/lib/api';
+import { isLoggedIn } from '@/lib/auth';
 
 const TYPE_FILTERS = ['All', 'Leader', 'Character', 'Event', 'Stage', 'DON!!'];
 
@@ -87,38 +89,35 @@ function CardRow({ card }: { card: CardEntry }) {
 }
 
 export default function CardsPage() {
-  const [cards, setCards] = useState<CardEntry[]>([]);
-  const [total, setTotal] = useState(0);
+  const router = useRouter();
+  const [allCards, setAllCards] = useState<CardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedType, setSelectedType] = useState('All');
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query), 300);
-    return () => clearTimeout(timer);
-  }, [query]);
-
-  const fetchCards = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params: { q?: string; type?: string } = {};
-      if (debouncedQuery) params.q = debouncedQuery;
-      if (selectedType !== 'All') params.type = selectedType;
-      const data = await getCards(params);
-      setCards(data.cards);
-      setTotal(data.total);
-    } catch {
-      setCards([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
+    if (!isLoggedIn()) {
+      router.replace('/');
+      return;
     }
-  }, [debouncedQuery, selectedType]);
+    getCards()
+      .then((data) => setAllCards(data.cards))
+      .catch(() => setAllCards([]))
+      .finally(() => setLoading(false));
+  }, [router]);
 
-  useEffect(() => {
-    fetchCards();
-  }, [fetchCards]);
+  const filtered = useMemo(() => {
+    let result = allCards;
+    if (query) {
+      const lower = query.toLowerCase();
+      result = result.filter((c) => c.name.toLowerCase().includes(lower));
+    }
+    if (selectedType !== 'All') {
+      const lower = selectedType.toLowerCase();
+      result = result.filter((c) => c.type != null && c.type.toLowerCase() === lower);
+    }
+    return result;
+  }, [allCards, query, selectedType]);
 
   return (
     <div className="min-h-screen">
@@ -138,7 +137,7 @@ export default function CardsPage() {
         <div className="mb-6">
           <h2 className="text-2xl font-bold mb-1">Card Database</h2>
           <p className="text-sm text-gray-400">
-            {loading ? 'Loading...' : `${total.toLocaleString()} card${total !== 1 ? 's' : ''}`}
+            {loading ? 'Loading...' : `${filtered.length.toLocaleString()} card${filtered.length !== 1 ? 's' : ''}`}
           </p>
         </div>
 
@@ -170,14 +169,14 @@ export default function CardsPage() {
 
         {loading ? (
           <div className="text-gray-400 text-center py-16">Loading cards...</div>
-        ) : cards.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-500">
             <p className="text-lg mb-2">No cards found</p>
             <p className="text-sm">Try adjusting your search or filters</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {cards.map((card) => (
+            {filtered.map((card) => (
               <CardRow key={card.id} card={card} />
             ))}
           </div>

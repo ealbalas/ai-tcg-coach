@@ -1,7 +1,8 @@
 import { getAllCards } from '../cards.js';
+import { authenticate } from '../middleware/auth.js';
 
 export async function cardsRoutes(fastify) {
-  fastify.get('/api/cards', async (request) => {
+  fastify.get('/api/cards', { preHandler: authenticate }, async (request) => {
     const { q, type, color } = request.query;
 
     let cards = getAllCards();

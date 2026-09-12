@@ -1,12 +1,24 @@
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 import Fastify from 'fastify';
+import jwt from 'jsonwebtoken';
 import { loadCards, getAllCards } from '../src/cards.js';
 import { cardsRoutes } from '../src/routes/cards.js';
 
+const TEST_SECRET = 'test-secret';
+
 before(async () => {
+  process.env.JWT_SECRET = TEST_SECRET;
   await loadCards();
 });
+
+function makeToken() {
+  return jwt.sign({ sub: 'user-1', email: 'test@example.com' }, TEST_SECRET);
+}
+
+function authHeaders() {
+  return { authorization: `Bearer ${makeToken()}` };
+}
 
 describe('getAllCards()', () => {
   it('returns an array', () => {
@@ -40,7 +52,7 @@ describe('GET /api/cards', () => {
     await app.register(cardsRoutes);
     await app.ready();
 
-    const res = await app.inject({ method: 'GET', url: '/api/cards' });
+    const res = await app.inject({ method: 'GET', url: '/api/cards', headers: authHeaders() });
     assert.strictEqual(res.statusCode, 200);
     const body = JSON.parse(res.body);
     assert.ok('cards' in body, 'Response must include cards');
@@ -48,6 +60,17 @@ describe('GET /api/cards', () => {
     assert.ok(Array.isArray(body.cards));
     assert.strictEqual(body.total, body.cards.length);
     assert.ok(body.total > 0, 'Expected at least one card returned');
+
+    await app.close();
+  });
+
+  it('rejects unauthenticated requests with 401', async () => {
+    const app = Fastify({ logger: false });
+    await app.register(cardsRoutes);
+    await app.ready();
+
+    const res = await app.inject({ method: 'GET', url: '/api/cards' });
+    assert.strictEqual(res.statusCode, 401);
 
     await app.close();
   });
@@ -65,6 +88,7 @@ describe('GET /api/cards', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/cards?q=${encodeURIComponent(firstWord)}`,
+      headers: authHeaders(),
     });
     assert.strictEqual(res.statusCode, 200);
     const body = JSON.parse(res.body);
@@ -81,7 +105,7 @@ describe('GET /api/cards', () => {
     await app.register(cardsRoutes);
     await app.ready();
 
-    const res = await app.inject({ method: 'GET', url: '/api/cards?type=Leader' });
+    const res = await app.inject({ method: 'GET', url: '/api/cards?type=Leader', headers: authHeaders() });
     assert.strictEqual(res.statusCode, 200);
     const body = JSON.parse(res.body);
     for (const card of body.cards) {
@@ -107,6 +131,7 @@ describe('GET /api/cards', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/cards?color=${encodeURIComponent(colorFragment)}`,
+      headers: authHeaders(),
     });
     assert.strictEqual(res.statusCode, 200);
     const body = JSON.parse(res.body);
@@ -125,7 +150,11 @@ describe('GET /api/cards', () => {
     await app.register(cardsRoutes);
     await app.ready();
 
-    const res = await app.inject({ method: 'GET', url: '/api/cards?q=ZZZNOMATCH999ZZZNOMATCH' });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/cards?q=ZZZNOMATCH999ZZZNOMATCH',
+      headers: authHeaders(),
+    });
     assert.strictEqual(res.statusCode, 200);
     const body = JSON.parse(res.body);
     assert.deepStrictEqual(body.cards, []);
