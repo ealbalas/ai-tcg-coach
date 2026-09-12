@@ -135,6 +135,7 @@ export interface CardEntry {
   color: string | null;
   effect: string | null;
   attribute: string | null;
+  image: string | null;
 }
 
 export async function getCards(): Promise<{ cards: CardEntry[]; total: number }> {

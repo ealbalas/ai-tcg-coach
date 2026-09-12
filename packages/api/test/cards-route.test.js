@@ -44,6 +44,17 @@ describe('getAllCards()', () => {
       );
     }
   });
+
+  it('returns cards with image field (string or null)', () => {
+    const cards = getAllCards();
+    for (const card of cards) {
+      assert.ok('image' in card, `Card ${card.id} must have image field`);
+      assert.ok(
+        card.image === null || typeof card.image === 'string',
+        `Card ${card.id} image must be null or string, got ${typeof card.image}`,
+      );
+    }
+  });
 });
 
 describe('GET /api/cards', () => {
@@ -159,6 +170,50 @@ describe('GET /api/cards', () => {
     const body = JSON.parse(res.body);
     assert.deepStrictEqual(body.cards, []);
     assert.strictEqual(body.total, 0);
+
+    await app.close();
+  });
+
+  it('returns image field on each card', async () => {
+    const app = Fastify({ logger: false });
+    await app.register(cardsRoutes);
+    await app.ready();
+
+    const res = await app.inject({ method: 'GET', url: '/api/cards', headers: authHeaders() });
+    assert.strictEqual(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    for (const card of body.cards) {
+      assert.ok('image' in card, `Card ${card.id} must have image field`);
+      assert.ok(
+        card.image === null || typeof card.image === 'string',
+        `Card ${card.id} image must be null or string`,
+      );
+    }
+
+    await app.close();
+  });
+
+  it('returns all card types without implicit leader-only filtering', async () => {
+    const allCards = getAllCards();
+    const app = Fastify({ logger: false });
+    await app.register(cardsRoutes);
+    await app.ready();
+
+    const res = await app.inject({ method: 'GET', url: '/api/cards', headers: authHeaders() });
+    assert.strictEqual(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+
+    assert.strictEqual(
+      body.total,
+      allCards.length,
+      'GET /api/cards must return all cached cards without implicit type filtering',
+    );
+
+    const cachedTypes = new Set(allCards.map((c) => c.type?.toLowerCase()).filter(Boolean));
+    const returnedTypes = new Set(body.cards.map((c) => c.type?.toLowerCase()).filter(Boolean));
+    for (const t of cachedTypes) {
+      assert.ok(returnedTypes.has(t), `Type "${t}" is in the cache but not returned by GET /api/cards`);
+    }
 
     await app.close();
   });
