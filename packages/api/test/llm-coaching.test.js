@@ -11,6 +11,7 @@ import jwt from 'jsonwebtoken';
 import { loadCards } from '../src/cards.js';
 import { buildCoachingSummary } from '../src/routes/games.js';
 import { gamesRoutes } from '../src/routes/games.js';
+import { buildPrompt } from '../src/prompt.js';
 
 const TEST_SECRET = 'test-secret';
 
@@ -317,6 +318,24 @@ describe('GET /api/games/:id - actions enriched with cardName', () => {
     await app.close();
   });
 
+  it('each turn card has details field', async () => {
+    const parsed = makeParsed({ turns: [makeTurnData(1, 1, ['ST01-001', 'UNKNOWN-999'])] });
+    const summary = buildCoachingSummary(parsed, 1);
+    const cards = summary.turns[0].cards;
+    assert.strictEqual(cards.length, 2);
+    for (const card of cards) {
+      assert.ok('details' in card, 'card must have details field');
+    }
+    assert.strictEqual(cards[1].details, null);
+  });
+
+  it('leader entries have details field', () => {
+    const parsed = makeParsed({ turns: [] });
+    const summary = buildCoachingSummary(parsed, 1);
+    assert.ok('details' in summary.myLeader, 'myLeader must have details');
+    assert.ok('details' in summary.oppLeader, 'oppLeader must have details');
+  });
+
   it('cardName is null for unknown card IDs', async () => {
     const turnWithUnknown = {
       id: 'turn-1',
@@ -352,5 +371,140 @@ describe('GET /api/games/:id - actions enriched with cardName', () => {
     assert.strictEqual(actions[0].cardName, null);
 
     await app.close();
+  });
+});
+
+// --- buildPrompt ---
+
+function makeDetails(overrides = {}) {
+  return { name: null, type: null, cost: null, power: null, color: null, effect: null, attribute: null, ...overrides };
+}
+
+function makeSummary({ myLeaderDetails = null, oppLeaderDetails = null, turns = [] } = {}) {
+  return {
+    myLeader: { id: 'OP01-001', name: 'Monkey D. Luffy', details: myLeaderDetails },
+    oppLeader: { id: 'ST02-001', name: 'Roronoa Zoro', details: oppLeaderDetails },
+    myPlayerNumber: 1,
+    turns,
+  };
+}
+
+describe('buildPrompt', () => {
+  it('includes card name and type in output', () => {
+    const summary = makeSummary({
+      turns: [{
+        turnNumber: 1,
+        isMyTurn: true,
+        cards: [{ id: 'OP01-002', name: 'Zoro', type: 'Character', details: null }],
+      }],
+    });
+    const prompt = buildPrompt(summary);
+    assert.ok(prompt.includes('Zoro [Character]'), 'prompt must include card name and type');
+  });
+
+  it('includes cost, power, and color when details are present', () => {
+    const summary = makeSummary({
+      turns: [{
+        turnNumber: 2,
+        isMyTurn: true,
+        cards: [{
+          id: 'OP01-002',
+          name: 'Nami',
+          type: 'Character',
+          details: makeDetails({ cost: 3, power: 3000, color: 'Red' }),
+        }],
+      }],
+    });
+    const prompt = buildPrompt(summary);
+    assert.ok(prompt.includes('3-cost'), 'prompt must include cost');
+    assert.ok(prompt.includes('3000 power'), 'prompt must include power');
+    assert.ok(prompt.includes('Red'), 'prompt must include color');
+  });
+
+  it('includes effect text truncated to 150 chars', () => {
+    const longEffect = 'A'.repeat(200);
+    const summary = makeSummary({
+      turns: [{
+        turnNumber: 1,
+        isMyTurn: true,
+        cards: [{
+          id: 'X-001',
+          name: 'TestCard',
+          type: 'Character',
+          details: makeDetails({ effect: longEffect }),
+        }],
+      }],
+    });
+    const prompt = buildPrompt(summary);
+    assert.ok(prompt.includes('A'.repeat(150) + '...'), 'prompt must truncate effect at 150 chars');
+    assert.ok(!prompt.includes('A'.repeat(151)), 'prompt must not include beyond 150 chars');
+  });
+
+  it('falls back to plain format for cards without details', () => {
+    const summary = makeSummary({
+      turns: [{
+        turnNumber: 1,
+        isMyTurn: true,
+        cards: [{ id: 'X-001', name: 'PlainCard', type: 'Character', details: null }],
+      }],
+    });
+    const prompt = buildPrompt(summary);
+    assert.ok(prompt.includes('PlainCard [Character]'), 'prompt must include name and type with no stats');
+    assert.ok(!prompt.includes('null'), 'prompt must not include null literal');
+  });
+
+  it('shows +N more when turn has more than 5 cards', () => {
+    const cards = Array.from({ length: 7 }, (_, i) => ({
+      id: `X-00${i}`,
+      name: `Card${i}`,
+      type: 'Character',
+      details: null,
+    }));
+    const summary = makeSummary({
+      turns: [{ turnNumber: 1, isMyTurn: true, cards }],
+    });
+    const prompt = buildPrompt(summary);
+    assert.ok(prompt.includes('+2 more'), 'prompt must note remaining cards beyond 5');
+  });
+
+  it('includes leader details when present', () => {
+    const summary = makeSummary({
+      myLeaderDetails: makeDetails({ type: 'Leader', color: 'Red', effect: 'Activate: draw 1 card.' }),
+    });
+    const prompt = buildPrompt(summary);
+    assert.ok(prompt.includes('Red'), 'prompt must include leader color');
+    assert.ok(prompt.includes('Activate: draw 1 card.'), 'prompt must include leader effect');
+  });
+
+  it('strips newlines and control characters from effect text', () => {
+    const summary = makeSummary({
+      turns: [{
+        turnNumber: 1,
+        isMyTurn: true,
+        cards: [{
+          id: 'X-001',
+          name: 'TestCard',
+          type: 'Character',
+          details: makeDetails({ effect: 'Rush\nBlocker\x00Null\x1Fend' }),
+        }],
+      }],
+    });
+    const prompt = buildPrompt(summary);
+    assert.ok(!prompt.includes('"Rush\nBlocker'), 'effect newlines must not appear inside quoted effect string');
+    assert.ok(!prompt.includes('\x00'), 'prompt must not include null bytes from effect text');
+    assert.ok(!prompt.includes('\x1F'), 'prompt must not include control chars from effect text');
+    assert.ok(prompt.includes('Rush'), 'prompt must include sanitized effect content');
+  });
+
+  it('omits opponent turns', () => {
+    const summary = makeSummary({
+      turns: [
+        { turnNumber: 1, isMyTurn: true, cards: [{ id: 'X-001', name: 'Mine', type: null, details: null }] },
+        { turnNumber: 2, isMyTurn: false, cards: [{ id: 'X-002', name: 'Theirs', type: null, details: null }] },
+      ],
+    });
+    const prompt = buildPrompt(summary);
+    assert.ok(prompt.includes('Mine'), 'prompt must include my card');
+    assert.ok(!prompt.includes('Theirs'), 'prompt must not include opponent card');
   });
 });

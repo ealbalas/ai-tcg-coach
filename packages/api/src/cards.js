@@ -10,7 +10,10 @@ const REMOTE_URLS = [
   'https://raw.githubusercontent.com/optcg-community/card-db/main/cards.json',
 ];
 
-/** @type {Map<string, {name: string, type: string | null}>} */
+/**
+ * @typedef {{ name: string, type: string|null, cost: number|null, power: number|null, color: string|null, effect: string|null, attribute: string|null }} CardRecord
+ * @type {Map<string, CardRecord>}
+ */
 const cardNameCache = new Map();
 
 const FALLBACK_LEADERS = new Map([
@@ -71,13 +74,14 @@ const FALLBACK_LEADERS = new Map([
 
 /**
  * Try to normalize a card entry from various community JSON formats.
- * Returns {id, name, type} or null.
+ * Returns a full card record or null.
  * @param {unknown} entry
- * @returns {{ id: string; name: string; type: string | null } | null}
+ * @returns {{ id: string; name: string; type: string|null; cost: number|null; power: number|null; color: string|null; effect: string|null; attribute: string|null } | null}
  */
-function normalizeEntry(entry) {
+export function normalizeEntry(entry) {
   if (!entry || typeof entry !== 'object') return null;
   const e = /** @type {Record<string, unknown>} */ (entry);
+
   const id =
     typeof e.id === 'string' ? e.id :
     typeof e.card_id === 'string' ? e.card_id :
@@ -86,13 +90,50 @@ function normalizeEntry(entry) {
     typeof e.name === 'string' ? e.name :
     typeof e.card_name === 'string' ? e.card_name :
     typeof e.cardName === 'string' ? e.cardName : null;
+  if (!id || !name) return null;
+
   const type =
     typeof e.type === 'string' ? e.type :
     typeof e.card_type === 'string' ? e.card_type :
     typeof e.cardType === 'string' ? e.cardType :
     typeof e.category === 'string' ? e.category : null;
-  if (id && name) return { id, name, type };
-  return null;
+
+  const rawCost = e.cost ?? e.card_cost ?? e.play_cost ?? null;
+  const parsedCost = rawCost != null ? parseInt(String(rawCost), 10) : NaN;
+  const cost = Number.isNaN(parsedCost) ? null : parsedCost;
+
+  const rawPower = e.power ?? e.card_power ?? null;
+  const parsedPower = rawPower != null ? parseInt(String(rawPower), 10) : NaN;
+  const power = Number.isNaN(parsedPower) ? null : parsedPower;
+
+  const rawColor = e.color ?? e.colors ?? e.card_color ?? null;
+  let color = null;
+  if (Array.isArray(rawColor)) {
+    const joined = rawColor.join('/');
+    color = joined.length > 0 ? joined : null;
+  } else if (typeof rawColor === 'string' && rawColor.length > 0) {
+    color = rawColor;
+  }
+
+  const rawEffect = e.effect ?? e.card_effect ?? e.ability ?? e.text ?? e.card_text ?? e.effects ?? null;
+  let effect = null;
+  if (Array.isArray(rawEffect)) {
+    const joined = rawEffect.join('/');
+    effect = joined.length > 0 ? joined : null;
+  } else if (typeof rawEffect === 'string' && rawEffect.length > 0) {
+    effect = rawEffect;
+  }
+
+  const rawAttr = e.attribute ?? e.attributes ?? e.card_attribute ?? null;
+  let attribute = null;
+  if (Array.isArray(rawAttr)) {
+    const joined = rawAttr.join('/');
+    attribute = joined.length > 0 ? joined : null;
+  } else if (typeof rawAttr === 'string' && rawAttr.length > 0) {
+    attribute = rawAttr;
+  }
+
+  return { id, name, type, cost, power, color, effect, attribute };
 }
 
 /**
@@ -110,7 +151,8 @@ async function tryLoadFromUrl(url) {
     for (const entry of entries) {
       const normalized = normalizeEntry(entry);
       if (normalized) {
-        cardNameCache.set(normalized.id, { name: normalized.name, type: normalized.type });
+        const { id, ...record } = normalized;
+        cardNameCache.set(id, record);
         count++;
       }
     }
@@ -135,7 +177,7 @@ export async function loadCards() {
 
   console.warn('[cards] Could not load remote card data; using fallback leader map');
   for (const [id, name] of FALLBACK_LEADERS) {
-    cardNameCache.set(id, { name, type: 'Leader' });
+    cardNameCache.set(id, { name, type: 'Leader', cost: null, power: null, color: null, effect: null, attribute: null });
   }
 }
 
@@ -157,4 +199,14 @@ export function getCardName(cardId) {
 export function getCardType(cardId) {
   if (!cardId) return null;
   return cardNameCache.get(cardId)?.type ?? null;
+}
+
+/**
+ * Return the full card record for a given card ID, or null if unknown.
+ * @param {string | null | undefined} cardId
+ * @returns {CardRecord | null}
+ */
+export function getCardDetails(cardId) {
+  if (!cardId) return null;
+  return cardNameCache.get(cardId) ?? null;
 }

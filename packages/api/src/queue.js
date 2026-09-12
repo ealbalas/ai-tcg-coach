@@ -1,6 +1,7 @@
 import { Queue, Worker } from 'bullmq';
 import Anthropic from '@anthropic-ai/sdk';
 import { pool } from './db.js';
+import { buildPrompt } from './prompt.js';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
@@ -16,43 +17,6 @@ function redisConnection() {
 }
 
 export const coachingQueue = new Queue('coaching', { connection: redisConnection() });
-
-function buildPrompt(summary) {
-  const turnLines = summary.turns
-    .filter((t) => t.isMyTurn)
-    .map((t) => {
-      const cardList = t.cards
-        .map((c) => {
-          const label = c.name ?? c.id;
-          return c.type ? `${label} [${c.type}]` : label;
-        })
-        .join(', ') || 'nothing recorded';
-      return `Turn ${t.turnNumber} (Mine): played ${cardList}`;
-    })
-    .join('\n');
-
-  return `You are an expert One Piece TCG coach. Analyze this game and provide coaching feedback.
-
-My leader: ${summary.myLeader.name ?? summary.myLeader.id} (${summary.myLeader.id})
-Opponent's leader: ${summary.oppLeader.name ?? summary.oppLeader.id} (${summary.oppLeader.id})
-
-Turn-by-turn play:
-${turnLines || 'No turns recorded.'}
-
-Please provide:
-1. A brief overall game assessment (2-3 sentences)
-2. For each of MY turns, specific coaching: what was good, what better options might exist, and why
-
-Format your response as JSON:
-{
-  "overall": "string",
-  "turns": [
-    { "turnNumber": N, "feedback": "string" }
-  ]
-}
-Only include MY turns (not opponent turns) in the turns array.
-Keep each feedback under 100 words. Be specific and actionable.`;
-}
 
 async function processCoachingJob(job) {
   const { gameId, parsedSummary } = job.data;

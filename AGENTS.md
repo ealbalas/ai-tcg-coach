@@ -64,12 +64,14 @@ CHK line: `RZ1|CHK|<seq>|<player>|<f0..f9>`
 In-game action types (attacks, DON!!, card plays) have not been confirmed from real game logs.
 The parser stores all unknown fields raw so they can be reinterpreted once richer samples arrive.
 
-## Card name lookup
+## Card data cache
 
 Implementation: `packages/api/src/cards.js`
 `loadCards()` is called non-blocking at startup: it tries two remote community JSON URLs, falls back to a hardcoded leader map if both fail.
+The cache stores full `CardRecord` objects: `{ name, type, cost, power, color, effect, attribute }`.
 `getCardName(cardId)` returns the cached name or `null`.
 `getCardType(cardId)` returns the cached type string (e.g. `"Leader"`, `"Character"`, `"DON!!"`) or `null`.
+`getCardDetails(cardId)` returns the full `CardRecord` or `null`.
 The startup race window (requests arriving before the cache is warm) is accepted: coaching notes written during that window will simply lack a leader-recognition note.
 
 ## Heuristic coaching engine
@@ -91,7 +93,8 @@ Future work: collect real in-game OPTCGSim logs that include attacks, DON!!, and
 
 ## LLM coaching pipeline
 
-Implementation: `packages/api/src/queue.js`
+Queue implementation: `packages/api/src/queue.js`
+Prompt building: `packages/api/src/prompt.js` (`buildPrompt` formats card details, stats, and effect text into the LLM prompt)
 BullMQ queue named `'coaching'` backed by Redis (`REDIS_URL` env var, default `redis://localhost:6379`).
 Requires `ioredis` as a peer dependency (installed).
 
@@ -101,7 +104,7 @@ Worker: calls claude-sonnet-4-6 via `@anthropic-ai/sdk`, parses JSON response, i
 **Queue injection pattern:** `gamesRoutes` accepts `opts.coachingQueue` (injected from `index.js`).
 Tests omit this option so no Redis connection is opened - do not import from `queue.js` in test files.
 
-`GET /api/games/:id` enriches each action in `actions_json` with `cardName: string | null` and `cardType: string | null` at response time (not stored in DB).
+`GET /api/games/:id` enriches each action in `actions_json` with `cardName: string | null`, `cardType: string | null`, and `details: CardRecord | null` at response time (not stored in DB).
 `GET /api/games/:id/coaching-status` returns current `coaching_status` for polling.
 
 Frontend polls every 5 s while status is `'pending'` or `'analyzing'`; refetches full game on `'done'`.
