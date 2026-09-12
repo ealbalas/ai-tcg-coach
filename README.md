@@ -22,6 +22,7 @@ The first run builds both images, starts PostgreSQL, and runs migrations automat
 3. Click **Upload a game** and select a `.txt` log file exported from OPTCGSim
 4. The game is parsed and heuristic coaching runs immediately
 5. Click the game in the list to see the turn timeline with coaching notes
+6. Click **Card Database** in the navigation to browse and search the full One Piece TCG card catalog
 
 ## Configuration
 
