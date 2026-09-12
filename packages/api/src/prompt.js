@@ -12,7 +12,8 @@ function formatCardEntry(c) {
 
   let effectPart = '';
   if (d.effect) {
-    const truncated = d.effect.length > 150 ? `${d.effect.slice(0, 150)}...` : d.effect;
+    const clean = d.effect.replace(/[\x00-\x1F\x7F]/g, ' ').trim();
+    const truncated = clean.length > 150 ? `${clean.slice(0, 150)}...` : clean;
     effectPart = ` - "${truncated}"`;
   }
 
@@ -30,7 +31,8 @@ function formatLeaderEntry(leader) {
 
   let effectPart = '';
   if (d.effect) {
-    const truncated = d.effect.length > 150 ? `${d.effect.slice(0, 150)}...` : d.effect;
+    const clean = d.effect.replace(/[\x00-\x1F\x7F]/g, ' ').trim();
+    const truncated = clean.length > 150 ? `${clean.slice(0, 150)}...` : clean;
     effectPart = ` - "${truncated}"`;
   }
 

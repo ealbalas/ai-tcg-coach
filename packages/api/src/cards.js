@@ -116,7 +116,13 @@ export function normalizeEntry(entry) {
   }
 
   const rawEffect = e.effect ?? e.card_effect ?? e.ability ?? e.text ?? e.card_text ?? e.effects ?? null;
-  const effect = typeof rawEffect === 'string' && rawEffect.length > 0 ? rawEffect : null;
+  let effect = null;
+  if (Array.isArray(rawEffect)) {
+    const joined = rawEffect.join('/');
+    effect = joined.length > 0 ? joined : null;
+  } else if (typeof rawEffect === 'string' && rawEffect.length > 0) {
+    effect = rawEffect;
+  }
 
   const rawAttr = e.attribute ?? e.attributes ?? e.card_attribute ?? null;
   let attribute = null;

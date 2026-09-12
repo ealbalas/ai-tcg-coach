@@ -476,6 +476,26 @@ describe('buildPrompt', () => {
     assert.ok(prompt.includes('Activate: draw 1 card.'), 'prompt must include leader effect');
   });
 
+  it('strips newlines and control characters from effect text', () => {
+    const summary = makeSummary({
+      turns: [{
+        turnNumber: 1,
+        isMyTurn: true,
+        cards: [{
+          id: 'X-001',
+          name: 'TestCard',
+          type: 'Character',
+          details: makeDetails({ effect: 'Rush\nBlocker\x00Null\x1Fend' }),
+        }],
+      }],
+    });
+    const prompt = buildPrompt(summary);
+    assert.ok(!prompt.includes('"Rush\nBlocker'), 'effect newlines must not appear inside quoted effect string');
+    assert.ok(!prompt.includes('\x00'), 'prompt must not include null bytes from effect text');
+    assert.ok(!prompt.includes('\x1F'), 'prompt must not include control chars from effect text');
+    assert.ok(prompt.includes('Rush'), 'prompt must include sanitized effect content');
+  });
+
   it('omits opponent turns', () => {
     const summary = makeSummary({
       turns: [

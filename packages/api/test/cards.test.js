@@ -103,6 +103,11 @@ describe('normalizeEntry', () => {
     }
   });
 
+  it('joins effects array with slash', () => {
+    const r = normalizeEntry({ id: 'X-001', name: 'A', effects: ['Rush', 'Blocker'] });
+    assert.strictEqual(r?.effect, 'Rush/Blocker');
+  });
+
   it('joins attribute array with slash', () => {
     const r = normalizeEntry({ id: 'X-001', name: 'A', attributes: ['Strike', 'Ranged'] });
     assert.strictEqual(r?.attribute, 'Strike/Ranged');
