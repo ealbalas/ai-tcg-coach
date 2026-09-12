@@ -1,6 +1,6 @@
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadCards, getCardName, getCardDetails, getCardImage, normalizeEntry } from '../src/cards.js';
+import { loadCards, getCardName, getCardDetails, normalizeEntry } from '../src/cards.js';
 
 describe('cards module', () => {
   before(async () => {
@@ -40,6 +40,39 @@ describe('cards module', () => {
         assert.strictEqual(typeof name, 'string');
         assert.ok(name.length > 0, `Card name for ${id} should not be empty`);
       }
+    }
+  });
+
+  it('loadCards extracts cards from { data: { code, cards: [...] } } wrapper structure', async () => {
+    // Verify the loader correctly parses the hugoprudente/optcgjson per-set file structure.
+    // Cards are nested under raw.data.cards - this test confirms that path is correct.
+    const originalFetch = globalThis.fetch;
+    const UNIQUE_ID = 'TEST-WRAPPER-STRUCT-001';
+    globalThis.fetch = async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('api.github.com')) {
+        return { ok: true, json: async () => [{ name: 'TEST-WRAPPER.json' }] };
+      }
+      // Simulate the actual hugoprudente/optcgjson per-set file format
+      return {
+        ok: true,
+        json: async () => ({
+          data: {
+            code: 'TEST-WRAPPER',
+            cards: [
+              { id: UNIQUE_ID, name: 'Wrapper Test Card', class: 'CHARACTER', color: ['Blue'] },
+            ],
+          },
+        }),
+      };
+    };
+    try {
+      await loadCards();
+      const name = getCardName(UNIQUE_ID);
+      assert.strictEqual(name, 'Wrapper Test Card',
+        'loadCards must extract cards from the data.cards wrapper in hugoprudente/optcgjson set files');
+    } finally {
+      globalThis.fetch = originalFetch;
     }
   });
 });
@@ -155,17 +188,6 @@ describe('getCardDetails', () => {
         assert.ok('image' in details, `details for ${id} must have image`);
       }
     }
-  });
-});
-
-describe('getCardImage', () => {
-  it('returns null for unknown card ID', () => {
-    assert.strictEqual(getCardImage('UNKNOWN-999'), null);
-  });
-
-  it('returns null for null/undefined input', () => {
-    assert.strictEqual(getCardImage(null), null);
-    assert.strictEqual(getCardImage(undefined), null);
   });
 });
 

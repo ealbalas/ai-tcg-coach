@@ -269,16 +269,6 @@ export function getCardDetails(cardId) {
 }
 
 /**
- * Return the image URL for a given card ID, or null if unknown.
- * @param {string | null | undefined} cardId
- * @returns {string | null}
- */
-export function getCardImage(cardId) {
-  if (!cardId) return null;
-  return cardNameCache.get(cardId)?.image ?? null;
-}
-
-/**
  * Return all cached cards sorted by id.
  * @returns {Array<CardRecord & { id: string }>}
  */

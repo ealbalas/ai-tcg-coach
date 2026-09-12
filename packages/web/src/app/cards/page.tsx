@@ -37,6 +37,7 @@ function CardRow({ card }: { card: CardEntry }) {
               alt={card.name}
               width={56}
               height={78}
+              loading="lazy"
               className="w-full h-full object-contain"
             />
           ) : (
