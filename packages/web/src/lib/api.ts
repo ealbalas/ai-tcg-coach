@@ -125,3 +125,27 @@ export async function uploadGame(file: File): Promise<{ game_id: string; game: G
 export async function getCoachingStatus(id: string): Promise<{ coaching_status: string }> {
   return request<{ coaching_status: string }>(`/api/games/${id}/coaching-status`);
 }
+
+export interface CardEntry {
+  id: string;
+  name: string;
+  type: string | null;
+  cost: number | null;
+  power: number | null;
+  color: string | null;
+  effect: string | null;
+  attribute: string | null;
+}
+
+export async function getCards(params?: {
+  q?: string;
+  type?: string;
+  color?: string;
+}): Promise<{ cards: CardEntry[]; total: number }> {
+  const qs = new URLSearchParams();
+  if (params?.q) qs.set('q', params.q);
+  if (params?.type) qs.set('type', params.type);
+  if (params?.color) qs.set('color', params.color);
+  const query = qs.toString() ? `?${qs.toString()}` : '';
+  return request<{ cards: CardEntry[]; total: number }>(`/api/cards${query}`);
+}
