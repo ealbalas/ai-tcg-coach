@@ -125,3 +125,18 @@ export async function uploadGame(file: File): Promise<{ game_id: string; game: G
 export async function getCoachingStatus(id: string): Promise<{ coaching_status: string }> {
   return request<{ coaching_status: string }>(`/api/games/${id}/coaching-status`);
 }
+
+export interface CardEntry {
+  id: string;
+  name: string;
+  type: string | null;
+  cost: number | null;
+  power: number | null;
+  color: string | null;
+  effect: string | null;
+  attribute: string | null;
+}
+
+export async function getCards(): Promise<{ cards: CardEntry[]; total: number }> {
+  return request<{ cards: CardEntry[]; total: number }>('/api/cards');
+}

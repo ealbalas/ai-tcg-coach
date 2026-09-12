@@ -72,6 +72,7 @@ The cache stores full `CardRecord` objects: `{ name, type, cost, power, color, e
 `getCardName(cardId)` returns the cached name or `null`.
 `getCardType(cardId)` returns the cached type string (e.g. `"Leader"`, `"Character"`, `"DON!!"`) or `null`.
 `getCardDetails(cardId)` returns the full `CardRecord` or `null`.
+`getAllCards()` returns all cached cards as `Array<CardRecord & { id: string }>`, sorted by id.
 The startup race window (requests arriving before the cache is warm) is accepted: coaching notes written during that window will simply lack a leader-recognition note.
 
 ## Heuristic coaching engine

@@ -4,6 +4,7 @@ import multipart from '@fastify/multipart';
 import { pool } from './db.js';
 import { authRoutes } from './routes/auth.js';
 import { gamesRoutes } from './routes/games.js';
+import { cardsRoutes } from './routes/cards.js';
 import { loadCards } from './cards.js';
 import { coachingQueue, startWorker } from './queue.js';
 
@@ -16,6 +17,7 @@ fastify.get('/health', async () => ({ ok: true }));
 
 await fastify.register(authRoutes);
 await fastify.register(gamesRoutes, { coachingQueue });
+await fastify.register(cardsRoutes);
 
 // Run migrations on startup
 async function runMigrations() {

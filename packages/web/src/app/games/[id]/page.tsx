@@ -183,6 +183,7 @@ export default function GameDetailPage() {
     }, 5000);
 
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, detail?.game.coaching_status]);
 
   if (loading) {

@@ -210,3 +210,16 @@ export function getCardDetails(cardId) {
   if (!cardId) return null;
   return cardNameCache.get(cardId) ?? null;
 }
+
+/**
+ * Return all cached cards sorted by id.
+ * @returns {Array<CardRecord & { id: string }>}
+ */
+export function getAllCards() {
+  const entries = [];
+  for (const [id, record] of cardNameCache) {
+    entries.push({ id, ...record });
+  }
+  entries.sort((a, b) => a.id.localeCompare(b.id));
+  return entries;
+}
