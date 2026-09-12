@@ -4,7 +4,7 @@ import { pool } from '../db.js';
 import { parseLog } from '../parser.js';
 import { runHeuristics } from '../coaching.js';
 import { authenticate } from '../middleware/auth.js';
-import { getCardName, getCardType } from '../cards.js';
+import { getCardName, getCardType, getCardDetails } from '../cards.js';
 
 export function buildCoachingSummary(parsed, myPlayer) {
   const myLeaderId = myPlayer === 1 ? parsed.player1Leader : parsed.player2Leader;
@@ -13,16 +13,23 @@ export function buildCoachingSummary(parsed, myPlayer) {
     myLeader: {
       id: myLeaderId,
       name: getCardName(myLeaderId),
+      details: getCardDetails(myLeaderId),
     },
     oppLeader: {
       id: oppLeaderId,
       name: getCardName(oppLeaderId),
+      details: getCardDetails(oppLeaderId),
     },
     myPlayerNumber: myPlayer,
     turns: parsed.turns.map((t) => ({
       turnNumber: t.turnNumber,
       isMyTurn: t.player === myPlayer,
-      cards: t.actions.map((a) => ({ id: a.cardId, name: getCardName(a.cardId), type: getCardType(a.cardId) })),
+      cards: t.actions.map((a) => ({
+        id: a.cardId,
+        name: getCardName(a.cardId),
+        type: getCardType(a.cardId),
+        details: getCardDetails(a.cardId),
+      })),
     })),
   };
 }
