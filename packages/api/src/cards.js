@@ -95,7 +95,6 @@ export function normalizeEntry(entry) {
   const id =
     typeof e.id === 'string' ? e.id :
     typeof e.number === 'string' ? e.number :
-    typeof e.card_code === 'string' ? e.card_code :
     typeof e.card_id === 'string' ? e.card_id :
     typeof e.cardId === 'string' ? e.cardId : null;
   const name =
