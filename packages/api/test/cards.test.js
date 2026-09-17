@@ -42,6 +42,39 @@ describe('cards module', () => {
       }
     }
   });
+
+  it('loadCards extracts cards from { data: { code, cards: [...] } } wrapper structure', async () => {
+    // Verify the loader correctly parses the hugoprudente/optcgjson per-set file structure.
+    // Cards are nested under raw.data.cards - this test confirms that path is correct.
+    const originalFetch = globalThis.fetch;
+    const UNIQUE_ID = 'TEST-WRAPPER-STRUCT-001';
+    globalThis.fetch = async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes('api.github.com')) {
+        return { ok: true, json: async () => [{ name: 'TEST-WRAPPER.json' }] };
+      }
+      // Simulate the actual hugoprudente/optcgjson per-set file format
+      return {
+        ok: true,
+        json: async () => ({
+          data: {
+            code: 'TEST-WRAPPER',
+            cards: [
+              { id: UNIQUE_ID, name: 'Wrapper Test Card', class: 'CHARACTER', color: ['Blue'] },
+            ],
+          },
+        }),
+      };
+    };
+    try {
+      await loadCards();
+      const name = getCardName(UNIQUE_ID);
+      assert.strictEqual(name, 'Wrapper Test Card',
+        'loadCards must extract cards from the data.cards wrapper in hugoprudente/optcgjson set files');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 describe('normalizeEntry', () => {
@@ -152,7 +185,82 @@ describe('getCardDetails', () => {
         assert.ok('color' in details, `details for ${id} must have color`);
         assert.ok('effect' in details, `details for ${id} must have effect`);
         assert.ok('attribute' in details, `details for ${id} must have attribute`);
+        assert.ok('image' in details, `details for ${id} must have image`);
       }
     }
+  });
+});
+
+describe('normalizeEntry - hugoprudente/optcgjson format', () => {
+  it('prefers class over type for card type', () => {
+    const entry = {
+      id: 'OP01-001',
+      name: 'Roronoa Zoro',
+      type: 'L',
+      class: 'LEADER',
+    };
+    const result = normalizeEntry(entry);
+    assert.ok(result !== null);
+    assert.strictEqual(result.type, 'LEADER', 'class field should be preferred over type short code');
+  });
+
+  it('joins color array with slash', () => {
+    const entry = { id: 'OP01-001', name: 'Zoro', color: ['Red', 'Blue'] };
+    const result = normalizeEntry(entry);
+    assert.strictEqual(result?.color, 'Red/Blue');
+  });
+
+  it('extracts image from image_url field', () => {
+    const imageUrl = 'https://asia-en.onepiece-cardgame.com/images/cardlist/card/OP01-001.png';
+    const entry = { id: 'OP01-001', name: 'Zoro', image_url: imageUrl };
+    const result = normalizeEntry(entry);
+    assert.strictEqual(result?.image, imageUrl);
+  });
+
+  it('extracts image from image field fallback', () => {
+    const imageUrl = 'https://example.com/card.png';
+    const entry = { id: 'OP01-001', name: 'Zoro', image: imageUrl };
+    const result = normalizeEntry(entry);
+    assert.strictEqual(result?.image, imageUrl);
+  });
+
+  it('returns null image when no image field present', () => {
+    const entry = { id: 'OP01-001', name: 'Zoro' };
+    const result = normalizeEntry(entry);
+    assert.strictEqual(result?.image, null);
+  });
+
+  it('handles full hugoprudente card entry correctly', () => {
+    const entry = {
+      id: 'OP01-001',
+      type: 'L',
+      class: 'LEADER',
+      name: 'Roronoa Zoro',
+      cost: 'Life5',
+      power: '5000',
+      color: ['Red'],
+      attribute: ['Slash'],
+      effect: '[DON!! x1] [Your Turn] attack',
+      image_url: 'https://asia-en.onepiece-cardgame.com/images/cardlist/card/OP01-001.png',
+    };
+    const result = normalizeEntry(entry);
+    assert.ok(result !== null);
+    assert.strictEqual(result.id, 'OP01-001');
+    assert.strictEqual(result.name, 'Roronoa Zoro');
+    assert.strictEqual(result.type, 'LEADER');
+    assert.strictEqual(result.color, 'Red');
+    assert.strictEqual(result.attribute, 'Slash');
+    assert.strictEqual(result.effect, '[DON!! x1] [Your Turn] attack');
+    assert.strictEqual(result.image, 'https://asia-en.onepiece-cardgame.com/images/cardlist/card/OP01-001.png');
+    // 'Life5' is not a parseable integer
+    assert.strictEqual(result.cost, null);
+    assert.strictEqual(result.power, 5000);
+  });
+
+  it('uses number field as id fallback', () => {
+    const entry = { number: 'OP01-002', name: 'Luffy' };
+    const result = normalizeEntry(entry);
+    assert.ok(result !== null);
+    assert.strictEqual(result.id, 'OP01-002');
   });
 });

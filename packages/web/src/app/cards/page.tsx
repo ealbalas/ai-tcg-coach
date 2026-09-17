@@ -27,63 +27,81 @@ function CardRow({ card }: { card: CardEntry }) {
     : card.effect;
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-700 transition-colors">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="flex items-start gap-3 min-w-0 flex-1">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-white text-sm">{card.name}</span>
-              {card.type && (
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeBadgeClass(card.type)}`}>
-                  {card.type}
-                </span>
-              )}
-            </div>
-            <span className="font-mono text-xs text-gray-500 mt-0.5 block">{card.id}</span>
-          </div>
+    <div className="bg-gray-900 border border-gray-800 rounded-xl px-3 py-3 hover:border-gray-700 transition-colors">
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0 w-[56px] h-[78px] rounded overflow-hidden bg-gray-800">
+          {card.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={card.image}
+              alt={card.name}
+              width={56}
+              height={78}
+              loading="lazy"
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <div className="w-full h-full bg-gray-700" />
+          )}
         </div>
 
-        <div className="flex items-center gap-4 text-sm flex-shrink-0">
-          {card.cost != null && (
-            <div className="text-center">
-              <div className="text-xs text-gray-500">Cost</div>
-              <div className="text-white font-mono">{card.cost}</div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-medium text-white text-sm">{card.name}</span>
+                {card.type && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeBadgeClass(card.type)}`}>
+                    {card.type}
+                  </span>
+                )}
+              </div>
+              <span className="font-mono text-xs text-gray-500 mt-0.5 block">{card.id}</span>
             </div>
-          )}
-          {card.power != null && (
-            <div className="text-center">
-              <div className="text-xs text-gray-500">Power</div>
-              <div className="text-white font-mono">{card.power.toLocaleString()}</div>
+
+            <div className="flex items-center gap-4 text-sm flex-shrink-0">
+              {card.cost != null && (
+                <div className="text-center">
+                  <div className="text-xs text-gray-500">Cost</div>
+                  <div className="text-white font-mono">{card.cost}</div>
+                </div>
+              )}
+              {card.power != null && (
+                <div className="text-center">
+                  <div className="text-xs text-gray-500">Power</div>
+                  <div className="text-white font-mono">{card.power.toLocaleString()}</div>
+                </div>
+              )}
+              {card.color && (
+                <div className="text-center">
+                  <div className="text-xs text-gray-500">Color</div>
+                  <div className="text-white text-xs">{card.color}</div>
+                </div>
+              )}
+              {card.attribute && (
+                <div className="text-center">
+                  <div className="text-xs text-gray-500">Attr</div>
+                  <div className="text-white text-xs">{card.attribute}</div>
+                </div>
+              )}
             </div>
-          )}
-          {card.color && (
-            <div className="text-center">
-              <div className="text-xs text-gray-500">Color</div>
-              <div className="text-white text-xs">{card.color}</div>
-            </div>
-          )}
-          {card.attribute && (
-            <div className="text-center">
-              <div className="text-xs text-gray-500">Attr</div>
-              <div className="text-white text-xs">{card.attribute}</div>
+          </div>
+
+          {hasEffect && (
+            <div className="mt-2 text-xs text-gray-400">
+              {expanded ? card.effect : effectPreview}
+              {card.effect && card.effect.length > 80 && (
+                <button
+                  onClick={() => setExpanded((v) => !v)}
+                  className="ml-1 text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  {expanded ? 'less' : 'more'}
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
-
-      {hasEffect && (
-        <div className="mt-2 text-xs text-gray-400">
-          {expanded ? card.effect : effectPreview}
-          {card.effect && card.effect.length > 80 && (
-            <button
-              onClick={() => setExpanded((v) => !v)}
-              className="ml-1 text-blue-400 hover:text-blue-300 transition-colors"
-            >
-              {expanded ? 'less' : 'more'}
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }
