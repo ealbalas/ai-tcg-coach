@@ -67,8 +67,8 @@ The parser stores all unknown fields raw so they can be reinterpreted once riche
 ## Card data cache
 
 Implementation: `packages/api/src/cards.js`
-`loadCards()` is called non-blocking at startup: it tries two remote community JSON URLs, falls back to a hardcoded leader map if both fail.
-The cache stores full `CardRecord` objects: `{ name, type, cost, power, color, effect, attribute }`.
+`loadCards()` is called non-blocking at startup: it fetches per-set JSON files from `https://github.com/hugoprudente/optcgjson` (full card database including images), falls back to a hardcoded leader map if all remote fetches fail.
+The cache stores full `CardRecord` objects: `{ name, type, cost, power, color, effect, attribute, image }`.
 `getCardName(cardId)` returns the cached name or `null`.
 `getCardType(cardId)` returns the cached type string (e.g. `"Leader"`, `"Character"`, `"DON!!"`) or `null`.
 `getCardDetails(cardId)` returns the full `CardRecord` or `null`.
