@@ -7,6 +7,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { normalizeEntry } from '../src/cards.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_PATH = join(__dirname, '../src/data/cards.json');
@@ -50,65 +51,6 @@ async function fetchSetCards(setCode) {
   }
 }
 
-function normalizeCard(entry) {
-  if (!entry || typeof entry !== 'object') return null;
-  const e = entry;
-
-  const id =
-    typeof e.id === 'string' ? e.id :
-    typeof e.number === 'string' ? e.number :
-    typeof e.card_id === 'string' ? e.card_id : null;
-  const name =
-    typeof e.name === 'string' ? e.name :
-    typeof e.card_name === 'string' ? e.card_name : null;
-  if (!id || !name) return null;
-
-  const type =
-    typeof e.class === 'string' ? e.class :
-    typeof e.type === 'string' ? e.type :
-    typeof e.card_type === 'string' ? e.card_type : null;
-
-  const rawCost = e.cost ?? e.card_cost ?? e.play_cost ?? null;
-  const parsedCost = rawCost != null ? parseInt(String(rawCost), 10) : NaN;
-  const cost = Number.isNaN(parsedCost) ? null : parsedCost;
-
-  const rawPower = e.power ?? e.card_power ?? null;
-  const parsedPower = rawPower != null ? parseInt(String(rawPower), 10) : NaN;
-  const power = Number.isNaN(parsedPower) ? null : parsedPower;
-
-  const rawColor = e.color ?? e.colors ?? null;
-  let color = null;
-  if (Array.isArray(rawColor)) {
-    const joined = rawColor.join('/');
-    color = joined.length > 0 ? joined : null;
-  } else if (typeof rawColor === 'string' && rawColor.length > 0) {
-    color = rawColor;
-  }
-
-  const rawAttr = e.attribute ?? e.attributes ?? null;
-  let attribute = null;
-  if (Array.isArray(rawAttr)) {
-    const joined = rawAttr.join('/');
-    attribute = joined.length > 0 ? joined : null;
-  } else if (typeof rawAttr === 'string' && rawAttr.length > 0) {
-    attribute = rawAttr;
-  }
-
-  const rawEffect = e.effect ?? e.card_effect ?? e.ability ?? e.text ?? e.effects ?? null;
-  let effect = null;
-  if (Array.isArray(rawEffect)) {
-    const joined = rawEffect.join('/');
-    effect = joined.length > 0 ? joined : null;
-  } else if (typeof rawEffect === 'string' && rawEffect.length > 0) {
-    effect = rawEffect;
-  }
-
-  const rawImage = e.image_url ?? e.image ?? null;
-  const image_url = typeof rawImage === 'string' && rawImage.length > 0 ? rawImage : null;
-
-  return { id, name, type, cost, power, color, attribute, effect, image_url };
-}
-
 async function main() {
   console.log('Fetching set list from GitHub...');
   const setCodes = await fetchSetCodes();
@@ -125,7 +67,7 @@ async function main() {
     let batchCount = 0;
     for (const cards of results) {
       for (const card of cards) {
-        const normalized = normalizeCard(card);
+        const normalized = normalizeEntry(card);
         if (normalized && !allCards.has(normalized.id)) {
           allCards.set(normalized.id, normalized);
           batchCount++;
