@@ -1,11 +1,11 @@
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadCards, getCardName, getCardDetails, normalizeEntry } from '../src/cards.js';
+import { loadCards, getCardName, getCardDetails, normalizeEntry, getAllCards, backgroundRefresh } from '../src/cards.js';
 
 describe('cards module', () => {
-  before(async () => {
-    // Runs loadCards once; may use network or fall back to hardcoded map
-    await loadCards();
+  before(() => {
+    // loadCards() is synchronous - loads from the bundled cards.json snapshot
+    loadCards();
   });
 
   it('returns null for a clearly unknown card ID', () => {
@@ -43,34 +43,65 @@ describe('cards module', () => {
     }
   });
 
-  it('loadCards extracts cards from { data: { code, cards: [...] } } wrapper structure', async () => {
-    // Verify the loader correctly parses the hugoprudente/optcgjson per-set file structure.
-    // Cards are nested under raw.data.cards - this test confirms that path is correct.
+  it('loadCards populates a large card set from the bundled snapshot', () => {
+    // The bundle (src/data/cards.json) has thousands of cards - verify it loaded
+    const cards = getAllCards();
+    assert.ok(cards.length > 1000, `Expected >1000 cards from bundle, got ${cards.length}`);
+  });
+
+  it('getAllCards returns cards with required fields from the bundle', () => {
+    const cards = getAllCards();
+    assert.ok(cards.length > 0, 'getAllCards must return at least one card');
+    const first = cards[0];
+    assert.ok(typeof first.id === 'string' && first.id.length > 0, 'card must have id');
+    assert.ok(typeof first.name === 'string' && first.name.length > 0, 'card must have name');
+    assert.ok('type' in first, 'card must have type field');
+    assert.ok('cost' in first, 'card must have cost field');
+    assert.ok('power' in first, 'card must have power field');
+    assert.ok('color' in first, 'card must have color field');
+  });
+
+  it('getAllCards returns cards sorted by id', () => {
+    const cards = getAllCards();
+    for (let i = 1; i < Math.min(cards.length, 100); i++) {
+      assert.ok(
+        cards[i - 1].id.localeCompare(cards[i].id) <= 0,
+        `Cards not sorted at index ${i}: ${cards[i - 1].id} > ${cards[i].id}`,
+      );
+    }
+  });
+
+  it('backgroundRefresh adds new cards without removing existing ones', async () => {
     const originalFetch = globalThis.fetch;
-    const UNIQUE_ID = 'TEST-WRAPPER-STRUCT-001';
+    const UNIQUE_REFRESH_ID = 'REFRESH-TEST-UNIQUE-XYZ-001';
+    const existingCard = getAllCards()[0];
+    assert.ok(existingCard, 'Need at least one existing card for this test');
+
     globalThis.fetch = async (url) => {
       const urlStr = String(url);
       if (urlStr.includes('api.github.com')) {
-        return { ok: true, json: async () => [{ name: 'TEST-WRAPPER.json' }] };
+        return { ok: true, json: async () => [{ name: 'REFRESH-TEST.json' }] };
       }
-      // Simulate the actual hugoprudente/optcgjson per-set file format
       return {
         ok: true,
         json: async () => ({
           data: {
-            code: 'TEST-WRAPPER',
+            code: 'REFRESH-TEST',
             cards: [
-              { id: UNIQUE_ID, name: 'Wrapper Test Card', class: 'CHARACTER', color: ['Blue'] },
+              { id: UNIQUE_REFRESH_ID, name: 'Brand New Card', class: 'CHARACTER', color: ['Green'] },
             ],
           },
         }),
       };
     };
     try {
-      await loadCards();
-      const name = getCardName(UNIQUE_ID);
-      assert.strictEqual(name, 'Wrapper Test Card',
-        'loadCards must extract cards from the data.cards wrapper in hugoprudente/optcgjson set files');
+      await backgroundRefresh();
+      // New card from refresh should be present
+      assert.strictEqual(getCardName(UNIQUE_REFRESH_ID), 'Brand New Card',
+        'backgroundRefresh must add new cards from the remote source');
+      // Existing cards from bundle must not be removed
+      assert.strictEqual(getCardName(existingCard.id), existingCard.name,
+        'backgroundRefresh must not remove existing bundle cards');
     } finally {
       globalThis.fetch = originalFetch;
     }

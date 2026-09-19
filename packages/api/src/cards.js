@@ -1,86 +1,18 @@
-/**
- * Card name lookup module.
- *
- * Fetches community card data at startup and caches it per-set from
- * https://github.com/hugoprudente/optcgjson.
- * Falls back to a hardcoded leader map if all remote fetches fail.
- */
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const BUNDLE_PATH = join(__dirname, 'data/cards.json');
 
 const GITHUB_DIR_URL = 'https://api.github.com/repos/hugoprudente/optcgjson/contents/sets/en';
 const SET_BASE_URL = 'https://raw.githubusercontent.com/hugoprudente/optcgjson/main/sets/en';
-
-const FALLBACK_SET_CODES = [
-  'OP01', 'OP02', 'OP03', 'OP04', 'OP05', 'OP06', 'OP07', 'OP08',
-  'OP09', 'OP10', 'OP11', 'OP12', 'OP13', 'OP14', 'OP15', 'OP16', 'OP17',
-  'ST01', 'ST02', 'ST03', 'ST04', 'ST05', 'ST06', 'ST07', 'ST08',
-  'ST09', 'ST10', 'ST11', 'ST12', 'ST13', 'ST14', 'ST15', 'ST16',
-  'ST17', 'ST18', 'ST19', 'ST20', 'ST21', 'ST22', 'ST23', 'ST24',
-  'ST25', 'ST26', 'ST27', 'ST28', 'ST29',
-  'EB01', 'EB02', 'EB03', 'EB04',
-  'PRB01', 'PRB02',
-];
 
 /**
  * @typedef {{ name: string, type: string|null, cost: number|null, power: number|null, color: string|null, effect: string|null, attribute: string|null, image: string|null }} CardRecord
  * @type {Map<string, CardRecord>}
  */
 const cardNameCache = new Map();
-
-const FALLBACK_LEADERS = new Map([
-  // OP01
-  ['OP01-001', 'Monkey D. Luffy'],
-  ['OP01-002', 'Roronoa Zoro'],
-  ['OP01-003', 'Nami'],
-  ['OP01-060', 'Monkey D. Luffy'],
-  // OP02
-  ['OP02-001', 'Trafalgar Law'],
-  ['OP02-049', 'Charlotte Katakuri'],
-  ['OP02-093', 'Nami'],
-  // OP03
-  ['OP03-001', 'Monkey D. Luffy'],
-  ['OP03-077', 'Donquixote Doflamingo'],
-  // OP04
-  ['OP04-001', 'Monkey D. Luffy'],
-  ['OP04-020', 'Sanji'],
-  ['OP04-040', 'Nico Robin'],
-  // OP05
-  ['OP05-001', 'Monkey D. Luffy'],
-  ['OP05-041', 'Charlotte Katakuri'],
-  ['OP05-098', 'Trafalgar Law'],
-  // OP06
-  ['OP06-001', 'Monkey D. Luffy'],
-  ['OP06-022', 'Roronoa Zoro'],
-  ['OP06-042', 'Nami'],
-  // OP07
-  ['OP07-001', 'Monkey D. Luffy'],
-  ['OP07-035', 'Rob Lucci'],
-  // OP08
-  ['OP08-001', 'Monkey D. Luffy'],
-  ['OP08-051', 'Blackbeard'],
-  // OP09
-  ['OP09-001', 'Monkey D. Luffy'],
-  // OP10
-  ['OP10-001', 'Monkey D. Luffy'],
-  // OP16
-  ['OP16-001', 'Monkey D. Luffy'],
-  ['OP16-022', 'Monkey D. Luffy'],
-  // OP17
-  ['OP17-001', 'Monkey D. Luffy'],
-  ['OP17-094', 'Roronoa Zoro'],
-  // ST (starter decks)
-  ['ST01-001', 'Monkey D. Luffy'],
-  ['ST02-001', 'Roronoa Zoro'],
-  ['ST03-001', 'Nami'],
-  ['ST04-001', 'Kaido'],
-  ['ST05-001', 'Donquixote Doflamingo'],
-  ['ST06-001', 'Trafalgar Law'],
-  ['ST07-001', 'Charlotte Katakuri'],
-  ['ST08-001', 'Monkey D. Luffy'],
-  ['ST09-001', 'Yamato'],
-  ['ST10-001', 'Monkey D. Luffy'],
-  ['ST12-001', 'Zeff'],
-  ['ST13-001', 'Monkey D. Luffy'],
-]);
 
 /**
  * Try to normalize a card entry from various community JSON formats.
@@ -153,8 +85,31 @@ export function normalizeEntry(entry) {
 }
 
 /**
+ * Load the bundled card snapshot synchronously, populating cardNameCache immediately.
+ */
+function loadBundle() {
+  try {
+    const raw = readFileSync(BUNDLE_PATH, 'utf8');
+    const cards = JSON.parse(raw);
+    let count = 0;
+    for (const entry of cards) {
+      const normalized = normalizeEntry(entry);
+      if (normalized && !cardNameCache.has(normalized.id)) {
+        const { id, ...record } = normalized;
+        cardNameCache.set(id, record);
+        count++;
+      }
+    }
+    console.log(`[cards] Loaded ${count} cards from bundle`);
+    return count;
+  } catch (err) {
+    console.error('[cards] Failed to load bundle:', err);
+    return 0;
+  }
+}
+
+/**
  * Fetch the list of available set codes from the GitHub directory listing.
- * Returns null on failure so the caller can fall back to FALLBACK_SET_CODES.
  * @returns {Promise<string[] | null>}
  */
 async function fetchSetCodes() {
@@ -192,49 +147,54 @@ async function fetchSetCards(setCode) {
 }
 
 /**
- * Fetch and cache the card list at startup.
- * Non-blocking: logs a warning and uses the fallback leader map if all fetches fail.
+ * Background refresh: fetch the latest card data from the remote source.
+ * Adds any cards not already in the cache (new sets released after the bundle).
+ * Failures are silent - the bundle data remains intact.
+ * Exported for testing.
  */
-export async function loadCards() {
-  const setCodes = (await fetchSetCodes()) ?? FALLBACK_SET_CODES;
-  console.log(`[cards] Loading ${setCodes.length} sets in parallel...`);
-
-  const results = await Promise.allSettled(setCodes.map(fetchSetCards));
-
-  let totalLoaded = 0;
-  for (const result of results) {
-    if (result.status === 'rejected') {
-      console.warn('[cards] Set fetch rejected:', result.reason);
-      continue;
+export async function backgroundRefresh() {
+  try {
+    const setCodes = await fetchSetCodes();
+    if (!setCodes) {
+      console.log('[cards] Background refresh: could not fetch set list');
+      return;
     }
-    const { setCode, cards, error } = result.value;
-    if (error) {
-      console.warn(`[cards] Failed to load set ${setCode}: ${error}`);
-      continue;
-    }
-    let count = 0;
-    for (const entry of cards) {
-      const normalized = normalizeEntry(entry);
-      if (normalized && !cardNameCache.has(normalized.id)) {
-        const { id, ...record } = normalized;
-        cardNameCache.set(id, record);
-        count++;
+    const results = await Promise.allSettled(setCodes.map(fetchSetCards));
+    let newCards = 0;
+    for (const result of results) {
+      if (result.status === 'rejected') continue;
+      const { cards, error } = result.value;
+      if (error) continue;
+      for (const entry of cards) {
+        const normalized = normalizeEntry(entry);
+        if (normalized && !cardNameCache.has(normalized.id)) {
+          const { id, ...record } = normalized;
+          cardNameCache.set(id, record);
+          newCards++;
+        }
       }
     }
-    console.log(`[cards] Loaded ${count} cards from set ${setCode}`);
-    totalLoaded += count;
-  }
-
-  if (totalLoaded === 0) {
-    console.warn('[cards] Could not load any card data; using fallback leader map');
-    for (const [id, name] of FALLBACK_LEADERS) {
-      if (!cardNameCache.has(id)) {
-        cardNameCache.set(id, { name, type: 'Leader', cost: null, power: null, color: null, effect: null, attribute: null, image: null });
-      }
+    if (newCards > 0) {
+      console.log(`[cards] Background refresh added ${newCards} new cards`);
+    } else {
+      console.log('[cards] Background refresh: no new cards');
     }
-  } else {
-    console.log(`[cards] Total: ${totalLoaded} cards loaded`);
+  } catch (err) {
+    console.warn('[cards] Background refresh failed:', err);
   }
+}
+
+/**
+ * Load cards synchronously from the bundled snapshot, then kick off a background
+ * refresh to pick up any new sets released after the bundle was committed.
+ */
+export function loadCards() {
+  const bundleCount = loadBundle();
+  if (bundleCount === 0) {
+    console.warn('[cards] Bundle load returned 0 cards - check data/cards.json');
+  }
+  // Background refresh - do not await; failures must not affect startup
+  backgroundRefresh().catch(() => {});
 }
 
 /**
