@@ -22,13 +22,13 @@ describe('cards module', () => {
 
   it('has at least some cards loaded after loadCards()', () => {
     // After loadCards() the cache should have at least one entry (remote or fallback).
-    // Test a set of IDs that appear in both the hardcoded fallback and common community data.
+    // Test a set of IDs present in the bundled cards.json snapshot.
     const knownIds = [
       'ST01-001', 'ST02-001', 'ST03-001',
       'OP01-001', 'OP01-002', 'OP01-060',
     ];
     const hits = knownIds.filter((id) => getCardName(id) !== null);
-    // At least some should resolve - if zero hits, both remote and fallback failed
+    // At least some should resolve - if zero hits, the bundle failed to load
     assert.ok(hits.length > 0, `Expected at least one known leader ID to resolve, got 0 from: ${knownIds.join(', ')}`);
   });
 
