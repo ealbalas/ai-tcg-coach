@@ -95,7 +95,7 @@ export function CardPopup({ hoveredCard }: CardPopupProps) {
           transform: 'translate(-50%, -50%)',
           width: 280,
           maxHeight: '90vh',
-          overflowY: 'auto',
+          overflowY: 'hidden',
         }}
       >
       <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden flex flex-col gap-3 p-3">
