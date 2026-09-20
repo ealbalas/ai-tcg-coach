@@ -103,7 +103,6 @@ export function CardPopup({ hoveredCard, position }: CardPopupProps) {
         top: position.top,
         left: position.left,
         width: 280,
-        transition: 'opacity 100ms ease',
       }}
     >
       <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden flex flex-col gap-3 p-3">
@@ -437,7 +436,7 @@ function computePopupPosition(rect: DOMRect): PopupPosition {
 
   const isRightSide = rect.left / vw > 0.6;
   const rawLeft = isRightSide ? rect.left - POPUP_WIDTH - 8 : rect.right + 8;
-  const left = Math.min(rawLeft, vw - POPUP_WIDTH - 8);
+  const left = Math.max(8, Math.min(rawLeft, vw - POPUP_WIDTH - 8));
 
   const rawTop = rect.top;
   const top = Math.max(8, Math.min(rawTop, vh - POPUP_APPROX_HEIGHT - 8));

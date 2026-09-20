@@ -58,6 +58,10 @@ describe('CardPopup', () => {
 });
 
 describe('CardTile hover', () => {
+  afterEach(() => {
+    Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, writable: true, configurable: true });
+  });
+
   function HoverWrapper({ card }: { card: CardWithParallels }) {
     const [hovered, setHovered] = useState<CardWithParallels | null>(null);
     return (
@@ -102,7 +106,5 @@ describe('CardTile hover', () => {
     const tile = screen.getByTestId('card-tile');
     fireEvent.mouseEnter(tile);
     expect(screen.queryByTestId('hover-indicator')).toBeNull();
-
-    Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, writable: true, configurable: true });
   });
 });
