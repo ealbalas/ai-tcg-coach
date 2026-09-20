@@ -26,7 +26,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { ...options, headers });
   if (res.status === 401) {
     clearToken();
-    if (typeof window !== 'undefined') window.location.href = '/';
+    if (token && typeof window !== 'undefined') window.location.href = '/';
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || res.statusText);
   }

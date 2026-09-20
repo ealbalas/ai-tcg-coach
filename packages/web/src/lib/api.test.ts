@@ -13,11 +13,21 @@ vi.stubGlobal('localStorage', {
   clear: () => { for (const k in store) delete store[k]; },
 });
 
+// Mock window so redirect assertions can be captured in the Node test environment
+let locationHref = '';
+vi.stubGlobal('window', {
+  location: {
+    get href() { return locationHref; },
+    set href(value: string) { locationHref = value; },
+  },
+});
+
 import { setToken, getCards } from './api';
 
 describe('request() - 401 handling', () => {
   beforeEach(() => {
     localStorage.clear();
+    locationHref = '';
   });
 
   afterEach(() => {
@@ -54,5 +64,33 @@ describe('request() - 401 handling', () => {
     await expect(getCards()).rejects.toThrow('Server error');
 
     expect(localStorage.getItem('tcg_token')).toBe('valid-token');
+  });
+
+  it('redirects to / on 401 when a session token was present', async () => {
+    setToken('stale-token');
+
+    mockFetch.mockResolvedValue({
+      status: 401,
+      ok: false,
+      statusText: 'Unauthorized',
+      json: async () => ({ error: 'Token expired' }),
+    });
+
+    await expect(getCards()).rejects.toThrow('Token expired');
+
+    expect(locationHref).toBe('/');
+  });
+
+  it('does not redirect on 401 when no token is present', async () => {
+    mockFetch.mockResolvedValue({
+      status: 401,
+      ok: false,
+      statusText: 'Unauthorized',
+      json: async () => ({ error: 'Invalid credentials' }),
+    });
+
+    await expect(getCards()).rejects.toThrow('Invalid credentials');
+
+    expect(locationHref).toBe('');
   });
 });
