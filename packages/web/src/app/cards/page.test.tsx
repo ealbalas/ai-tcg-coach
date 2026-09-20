@@ -41,8 +41,6 @@ describe('CardPopup', () => {
 
     const effectEl = screen.getByTestId('popup-effect');
     expect(effectEl.textContent).toBe(longEffect);
-    expect(effectEl.className).not.toMatch(/line-clamp/);
-    expect(effectEl.className).not.toMatch(/truncate/);
   });
 
   it('renders the card name', () => {

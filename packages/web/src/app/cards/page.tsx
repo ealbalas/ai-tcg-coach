@@ -436,7 +436,8 @@ function computePopupPosition(rect: DOMRect): PopupPosition {
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
 
   const isRightSide = rect.left / vw > 0.6;
-  const left = isRightSide ? rect.left - POPUP_WIDTH - 8 : rect.right + 8;
+  const rawLeft = isRightSide ? rect.left - POPUP_WIDTH - 8 : rect.right + 8;
+  const left = Math.min(rawLeft, vw - POPUP_WIDTH - 8);
 
   const rawTop = rect.top;
   const top = Math.max(8, Math.min(rawTop, vh - POPUP_APPROX_HEIGHT - 8));
