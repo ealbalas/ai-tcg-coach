@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { useState } from 'react';
-import { CardPopup, CardTile } from './page';
+import { CardPopup, CardTile } from './components';
 import type { CardWithParallels } from '@/lib/cardUtils';
 
 function makeCard(overrides: Partial<CardWithParallels> = {}): CardWithParallels {
