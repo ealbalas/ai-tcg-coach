@@ -1,11 +1,11 @@
 import type { CardEntry } from './api';
 
-export function filterCards(
-  cards: CardEntry[],
+export function filterCards<T extends CardEntry>(
+  cards: T[],
   query: string,
   selectedType: string,
   selectedColor: string,
-): CardEntry[] {
+): T[] {
   let result = cards;
 
   if (query) {
