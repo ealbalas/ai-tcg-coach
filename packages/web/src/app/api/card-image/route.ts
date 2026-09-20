@@ -9,20 +9,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return new NextResponse(null, { status: 400 });
   }
 
-  const url = `https://asia-en.onepiece-cardgame.com/images/cardlist/card/${id}.png`;
+  const urls = [
+    `https://en.onepiece-cardgame.com/images/cardlist/card/${id}.png`,
+    `https://asia-en.onepiece-cardgame.com/images/cardlist/card/${id}.png`,
+  ];
 
-  try {
-    const upstream = await fetch(url);
-    if (!upstream.ok) {
-      return new NextResponse(null, { status: 404 });
+  for (const url of urls) {
+    try {
+      const upstream = await fetch(url);
+      if (upstream.ok) {
+        return new NextResponse(upstream.body, {
+          headers: {
+            'content-type': 'image/png',
+            'cache-control': 'public, max-age=86400',
+          },
+        });
+      }
+    } catch {
+      // try next URL
     }
-    return new NextResponse(upstream.body, {
-      headers: {
-        'content-type': 'image/png',
-        'cache-control': 'public, max-age=86400',
-      },
-    });
-  } catch {
-    return new NextResponse(null, { status: 404 });
   }
+  return new NextResponse(null, { status: 404 });
 }
