@@ -67,13 +67,17 @@ The parser stores all unknown fields raw so they can be reinterpreted once riche
 ## Card data cache
 
 Implementation: `packages/api/src/cards.js`
-`loadCards()` is called non-blocking at startup: it fetches per-set JSON files from `https://github.com/hugoprudente/optcgjson` (full card database including images), falls back to a hardcoded leader map if all remote fetches fail.
+`loadCards()` is called synchronously at startup: it reads `packages/api/src/data/cards.json` (the committed bundle) via `readFileSync`, so cards are available immediately with no network dependency.
+After loading the bundle, `backgroundRefresh()` is fired without awaiting to pick up any sets released after the bundle was committed; failures are silent and leave the bundle data intact.
 The cache stores full `CardRecord` objects: `{ name, type, cost, power, color, effect, attribute, image }`.
 `getCardName(cardId)` returns the cached name or `null`.
 `getCardType(cardId)` returns the cached type string (e.g. `"Leader"`, `"Character"`, `"DON!!"`) or `null`.
 `getCardDetails(cardId)` returns the full `CardRecord` or `null`.
 `getAllCards()` returns all cached cards as `Array<CardRecord & { id: string }>`, sorted by id.
-The startup race window (requests arriving before the cache is warm) is accepted: coaching notes written during that window will simply lack a leader-recognition note.
+`normalizeEntry(entry)` is exported and shared by both the runtime loader and the bundle-generation script; it normalizes raw upstream JSON into a `CardRecord`.
+
+To regenerate the bundle after upstream card data changes: `node packages/api/scripts/fetch-cards.mjs`.
+Commit the resulting `packages/api/src/data/cards.json`.
 
 ## Heuristic coaching engine
 
