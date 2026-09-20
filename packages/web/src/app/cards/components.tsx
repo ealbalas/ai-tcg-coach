@@ -69,33 +69,35 @@ export function CardPlaceholder() {
   );
 }
 
-export interface PopupPosition {
-  top: number;
-  left: number;
-}
-
 export interface CardPopupProps {
   hoveredCard: CardWithParallels | null;
-  position: PopupPosition | null;
 }
 
-export function CardPopup({ hoveredCard, position }: CardPopupProps) {
-  if (!hoveredCard || !position) return null;
+export function CardPopup({ hoveredCard }: CardPopupProps) {
+  if (!hoveredCard) return null;
 
   const card = hoveredCard;
   const imgSrc = cardImageUrl(card.image, card.id);
   const parsed = parseCardId(card.id);
 
   return (
-    <div
-      data-testid="card-popup"
-      className="fixed z-50 pointer-events-none"
-      style={{
-        top: position.top,
-        left: position.left,
-        width: 280,
-      }}
-    >
+    <>
+      <div
+        className="fixed inset-0 z-40 bg-black/60 pointer-events-none"
+        aria-hidden="true"
+      />
+      <div
+        data-testid="card-popup"
+        className="fixed z-50 pointer-events-none"
+        style={{
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 280,
+          maxHeight: '90vh',
+          overflowY: 'auto',
+        }}
+      >
       <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden flex flex-col gap-3 p-3">
         {/* Full card image */}
         <div className="rounded-lg overflow-hidden bg-gray-800" style={{ aspectRatio: '7/10', width: '100%' }}>
@@ -173,6 +175,7 @@ export function CardPopup({ hoveredCard, position }: CardPopupProps) {
         )}
       </div>
     </div>
+    </>
   );
 }
 
@@ -184,16 +187,16 @@ export function CardTile({
 }: {
   card: CardWithParallels;
   onClick: () => void;
-  onHover?: (card: CardWithParallels, rect: DOMRect) => void;
+  onHover?: (card: CardWithParallels) => void;
   onLeave?: () => void;
 }) {
   const hasEffect = Boolean(card.effect);
   const imgSrc = cardImageUrl(card.image, card.id);
   const parsed = parseCardId(card.id);
 
-  function handleMouseEnter(e: React.MouseEvent<HTMLDivElement>) {
+  function handleMouseEnter() {
     if (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) return;
-    onHover?.(card, (e.currentTarget as HTMLDivElement).getBoundingClientRect());
+    onHover?.(card);
   }
 
   return (

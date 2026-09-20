@@ -14,7 +14,6 @@ import {
   typeBadgeClass,
   COLOR_ACTIVE,
   COLOR_INACTIVE,
-  type PopupPosition,
 } from './components';
 
 const TYPE_FILTERS = ['All', 'Leader', 'Character', 'Event', 'Stage', 'DON!!'];
@@ -156,23 +155,6 @@ function SkeletonTile() {
   );
 }
 
-const POPUP_WIDTH = 280;
-const POPUP_APPROX_HEIGHT = 520;
-
-function computePopupPosition(rect: DOMRect): PopupPosition {
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
-  const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-
-  const isRightSide = rect.left / vw > 0.6;
-  const rawLeft = isRightSide ? rect.left - POPUP_WIDTH - 8 : rect.right + 8;
-  const left = Math.max(8, Math.min(rawLeft, vw - POPUP_WIDTH - 8));
-
-  const rawTop = rect.top;
-  const top = Math.max(8, Math.min(rawTop, vh - POPUP_APPROX_HEIGHT - 8));
-
-  return { top, left };
-}
-
 export default function CardsPage() {
   const router = useRouter();
   const [allCards, setAllCards] = useState<CardEntry[]>([]);
@@ -183,7 +165,6 @@ export default function CardsPage() {
   const [selectedColor, setSelectedColor] = useState('All Colors');
   const [selectedCard, setSelectedCard] = useState<CardWithParallels | null>(null);
   const [hoveredCard, setHoveredCard] = useState<CardWithParallels | null>(null);
-  const [popupPos, setPopupPos] = useState<PopupPosition | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query), 300);
@@ -223,14 +204,12 @@ export default function CardsPage() {
   if (selectedColor !== 'All Colors') filterSummaryParts.push(selectedColor);
   if (debouncedQuery) filterSummaryParts.push(`"${debouncedQuery}"`);
 
-  function handleCardHover(card: CardWithParallels, rect: DOMRect) {
+  function handleCardHover(card: CardWithParallels) {
     setHoveredCard(card);
-    setPopupPos(computePopupPosition(rect));
   }
 
   function handleCardLeave() {
     setHoveredCard(null);
-    setPopupPos(null);
   }
 
   return (
@@ -350,7 +329,7 @@ export default function CardsPage() {
         )}
       </main>
 
-      <CardPopup hoveredCard={hoveredCard} position={popupPos} />
+      <CardPopup hoveredCard={hoveredCard} />
 
       {selectedCard && (
         <CardDetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
