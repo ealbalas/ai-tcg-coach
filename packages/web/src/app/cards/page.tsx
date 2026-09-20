@@ -78,10 +78,133 @@ function CardPlaceholder() {
   );
 }
 
-function CardTile({ card, onClick }: { card: CardWithParallels; onClick: () => void }) {
+export interface PopupPosition {
+  top: number;
+  left: number;
+}
+
+export interface CardPopupProps {
+  hoveredCard: CardWithParallels | null;
+  position: PopupPosition | null;
+}
+
+export function CardPopup({ hoveredCard, position }: CardPopupProps) {
+  if (!hoveredCard || !position) return null;
+
+  const card = hoveredCard;
+  const imgSrc = cardImageUrl(card.image, card.id);
+  const parsed = parseCardId(card.id);
+
+  return (
+    <div
+      data-testid="card-popup"
+      className="fixed z-50 pointer-events-none"
+      style={{
+        top: position.top,
+        left: position.left,
+        width: 280,
+        transition: 'opacity 100ms ease',
+      }}
+    >
+      <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden flex flex-col gap-3 p-3">
+        {/* Full card image */}
+        <div className="rounded-lg overflow-hidden bg-gray-800" style={{ aspectRatio: '7/10', width: '100%' }}>
+          {imgSrc ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={imgSrc} alt={card.name} className="w-full h-full object-cover" />
+          ) : (
+            <CardPlaceholder />
+          )}
+        </div>
+
+        {/* Card name + set badge */}
+        <div>
+          <p className="text-white font-bold text-sm leading-tight">{card.name}</p>
+          {parsed && (
+            <p className="text-gray-500 text-xs font-mono mt-0.5">
+              {parsed.set} <span className="text-gray-600">· #{parsed.num}</span>
+            </p>
+          )}
+        </div>
+
+        {/* Type + attribute badges */}
+        <div className="flex items-center gap-1 flex-wrap">
+          {card.type && (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium leading-none ${typeBadgeClass(card.type)}`}>
+              {card.type}
+            </span>
+          )}
+          {card.attribute && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-300 leading-none">
+              {card.attribute}
+            </span>
+          )}
+        </div>
+
+        {/* Stats row */}
+        <div className="flex items-center gap-1.5">
+          {card.cost != null && (
+            <span className="text-[10px] bg-gray-800 text-gray-300 px-1.5 py-0.5 rounded font-mono leading-none">
+              Cost {card.cost}
+            </span>
+          )}
+          {card.power != null && (
+            <span className="text-[10px] bg-gray-800 text-gray-300 px-1.5 py-0.5 rounded font-mono leading-none">
+              {(card.power / 1000).toFixed(0)}k
+            </span>
+          )}
+          <ColorDots color={card.color} />
+        </div>
+
+        {/* Full effect text - not truncated */}
+        {card.effect && (
+          <p data-testid="popup-effect" className="text-xs text-gray-300 leading-relaxed whitespace-pre-line">
+            {card.effect}
+          </p>
+        )}
+
+        {/* Parallel thumbnails */}
+        {card.parallels.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap border-t border-gray-800 pt-2">
+            {card.parallels.map((p) => {
+              const src = cardImageUrl(p.image, p.id);
+              return (
+                <div key={p.id} className="w-10 rounded overflow-hidden bg-gray-800 flex-shrink-0" style={{ aspectRatio: '7/10' }}>
+                  {src ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={src} alt={p.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <CardPlaceholder />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function CardTile({
+  card,
+  onClick,
+  onHover,
+  onLeave,
+}: {
+  card: CardWithParallels;
+  onClick: () => void;
+  onHover?: (card: CardWithParallels, rect: DOMRect) => void;
+  onLeave?: () => void;
+}) {
   const hasEffect = Boolean(card.effect);
   const imgSrc = cardImageUrl(card.image, card.id);
   const parsed = parseCardId(card.id);
+
+  function handleMouseEnter(e: React.MouseEvent<HTMLDivElement>) {
+    if (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) return;
+    onHover?.(card, (e.currentTarget as HTMLDivElement).getBoundingClientRect());
+  }
 
   return (
     <div
@@ -89,6 +212,8 @@ function CardTile({ card, onClick }: { card: CardWithParallels; onClick: () => v
       className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-gray-600 transition-colors flex flex-col cursor-pointer"
       style={{ aspectRatio: '7/10' }}
       onClick={onClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={onLeave}
     >
       {/* Image - top 60% */}
       <div className="relative flex-none overflow-hidden" style={{ height: '60%' }}>
@@ -303,6 +428,22 @@ function SkeletonTile() {
   );
 }
 
+const POPUP_WIDTH = 280;
+const POPUP_APPROX_HEIGHT = 520;
+
+function computePopupPosition(rect: DOMRect): PopupPosition {
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+
+  const isRightSide = rect.left / vw > 0.6;
+  const left = isRightSide ? rect.left - POPUP_WIDTH - 8 : rect.right + 8;
+
+  const rawTop = rect.top;
+  const top = Math.max(8, Math.min(rawTop, vh - POPUP_APPROX_HEIGHT - 8));
+
+  return { top, left };
+}
+
 export default function CardsPage() {
   const router = useRouter();
   const [allCards, setAllCards] = useState<CardEntry[]>([]);
@@ -312,6 +453,8 @@ export default function CardsPage() {
   const [selectedType, setSelectedType] = useState('All');
   const [selectedColor, setSelectedColor] = useState('All Colors');
   const [selectedCard, setSelectedCard] = useState<CardWithParallels | null>(null);
+  const [hoveredCard, setHoveredCard] = useState<CardWithParallels | null>(null);
+  const [popupPos, setPopupPos] = useState<PopupPosition | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query), 300);
@@ -350,6 +493,16 @@ export default function CardsPage() {
   if (selectedType !== 'All') filterSummaryParts.push(selectedType);
   if (selectedColor !== 'All Colors') filterSummaryParts.push(selectedColor);
   if (debouncedQuery) filterSummaryParts.push(`"${debouncedQuery}"`);
+
+  function handleCardHover(card: CardWithParallels, rect: DOMRect) {
+    setHoveredCard(card);
+    setPopupPos(computePopupPosition(rect));
+  }
+
+  function handleCardLeave() {
+    setHoveredCard(null);
+    setPopupPos(null);
+  }
 
   return (
     <div className="min-h-screen">
@@ -456,11 +609,19 @@ export default function CardsPage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {filtered.map((card) => (
-              <CardTile key={card.id} card={card} onClick={() => setSelectedCard(card)} />
+              <CardTile
+                key={card.id}
+                card={card}
+                onClick={() => setSelectedCard(card)}
+                onHover={handleCardHover}
+                onLeave={handleCardLeave}
+              />
             ))}
           </div>
         )}
       </main>
+
+      <CardPopup hoveredCard={hoveredCard} position={popupPos} />
 
       {selectedCard && (
         <CardDetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
