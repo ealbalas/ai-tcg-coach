@@ -6,8 +6,14 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   reporter: 'list',
+  webServer: {
+    command: 'node_modules/.bin/next dev -p 3090',
+    url: 'http://localhost:3090',
+    reuseExistingServer: true,
+    timeout: 120000,
+  },
   use: {
-    baseURL: 'http://localhost:3080',
+    baseURL: process.env.BASE_URL ?? 'http://localhost:3090',
     trace: 'on-first-retry',
   },
   projects: [

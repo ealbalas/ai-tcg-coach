@@ -20,11 +20,12 @@ async function registerAndGoToCards(page: import('@playwright/test').Page) {
 }
 
 const cardCountSummary = (page: import('@playwright/test').Page) =>
-  page.locator('text=/Showing \\d+ cards?/');
+  page.locator('text=/Showing [\\d,]+ cards?/');
 
 async function getCardCount(page: import('@playwright/test').Page): Promise<number> {
   const text = await cardCountSummary(page).textContent();
-  return parseInt(text?.match(/\d+/)?.[0] ?? '0', 10);
+  const raw = text?.match(/[\d,]+/)?.[0] ?? '0';
+  return parseInt(raw.replace(/,/g, ''), 10);
 }
 
 test.describe('Card database browser', () => {
