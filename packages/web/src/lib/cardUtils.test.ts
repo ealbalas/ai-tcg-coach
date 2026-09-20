@@ -81,6 +81,29 @@ describe('groupCardsByBase', () => {
     expect(result[1].parallels).toHaveLength(0);
   });
 
+  it('groups _r suffix rare-art variants under base card', () => {
+    const base = makeCard({ id: 'EB01-006', name: 'Tony Tony.Chopper' });
+    const r1 = makeCard({ id: 'EB01-006_r1', name: 'Tony Tony.Chopper (Rare)' });
+
+    const result = groupCardsByBase([base, r1]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('EB01-006');
+    expect(result[0].parallels).toHaveLength(1);
+    expect(result[0].parallels[0].id).toBe('EB01-006_r1');
+  });
+
+  it('groups both _p and _r variants together under same base', () => {
+    const base = makeCard({ id: 'OP01-001' });
+    const p1 = makeCard({ id: 'OP01-001_p1' });
+    const r1 = makeCard({ id: 'OP01-001_r1' });
+
+    const result = groupCardsByBase([base, p1, r1]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].parallels).toHaveLength(2);
+  });
+
   it('treats parallel with no base as its own base entry', () => {
     const orphan = makeCard({ id: 'OP01-999_p1', name: 'Orphan Parallel' });
 

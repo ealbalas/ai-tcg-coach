@@ -20,7 +20,7 @@ export function groupCardsByBase(cards: CardEntry[]): CardWithParallels[] {
   const parallels: CardEntry[] = [];
 
   for (const card of cards) {
-    if (/_p\d+$/.test(card.id)) {
+    if (/_[pr]\d+$/.test(card.id)) {
       parallels.push(card);
     } else {
       map.set(card.id, { ...card, parallels: [] });
@@ -28,7 +28,7 @@ export function groupCardsByBase(cards: CardEntry[]): CardWithParallels[] {
   }
 
   for (const parallel of parallels) {
-    const baseId = parallel.id.replace(/_p\d+$/, '');
+    const baseId = parallel.id.replace(/_[pr]\d+$/, '');
     const base = map.get(baseId);
     if (base) {
       base.parallels.push(parallel);
