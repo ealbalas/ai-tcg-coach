@@ -168,12 +168,15 @@ function CardTile({ card, onClick }: { card: CardWithParallels; onClick: () => v
 }
 
 function CardDetailModal({ card, onClose }: { card: CardWithParallels; onClose: () => void }) {
-  const [activeImg, setActiveImg] = useState<string | null>(cardImageUrl(card.image, card.id));
+  const [activeId, setActiveId] = useState<string>(card.id);
 
   const allVersions: { card: CardEntry; label: string }[] = [
     { card, label: 'Base' },
     ...card.parallels.map((p, i) => ({ card: p, label: `P${i + 1}` })),
   ];
+
+  const activeVersion = allVersions.find(({ card: v }) => v.id === activeId)?.card ?? card;
+  const activeImgSrc = cardImageUrl(activeVersion.image, activeVersion.id);
 
   return (
     <div
@@ -208,9 +211,9 @@ function CardDetailModal({ card, onClose }: { card: CardWithParallels; onClose: 
         {/* Main image */}
         <div className="flex gap-4">
           <div className="flex-1 rounded-lg overflow-hidden bg-gray-800 aspect-[7/10] max-w-[200px]">
-            {activeImg ? (
+            {activeImgSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={activeImg} alt={card.name} className="w-full h-full object-cover" />
+              <img src={activeImgSrc} alt={card.name} className="w-full h-full object-cover" />
             ) : (
               <CardPlaceholder />
             )}
@@ -221,11 +224,11 @@ function CardDetailModal({ card, onClose }: { card: CardWithParallels; onClose: 
             <div className="flex flex-col gap-2 overflow-y-auto max-h-64">
               {allVersions.map(({ card: v, label }) => {
                 const src = cardImageUrl(v.image, v.id);
-                const isActive = activeImg === src;
+                const isActive = activeId === v.id;
                 return (
                   <button
                     key={v.id}
-                    onClick={() => setActiveImg(src)}
+                    onClick={() => setActiveId(v.id)}
                     className={`relative rounded-lg overflow-hidden border-2 transition-colors flex-shrink-0 w-16 aspect-[7/10] ${
                       isActive ? 'border-blue-500' : 'border-gray-700 hover:border-gray-500'
                     }`}

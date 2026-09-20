@@ -12,7 +12,7 @@ export function parseCardId(id: string): { set: string; num: string } | null {
 
 export function cardImageUrl(image: string | null, id: string): string | null {
   if (!image) return null;
-  return `/api/card-image?id=${id}`;
+  return `/api/card-image?id=${encodeURIComponent(id)}`;
 }
 
 export function groupCardsByBase(cards: CardEntry[]): CardWithParallels[] {
