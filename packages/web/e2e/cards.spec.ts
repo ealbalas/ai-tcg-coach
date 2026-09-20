@@ -16,8 +16,15 @@ async function registerAndGoToCards(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: 'Create Account' }).click();
   await page.waitForURL('**/games');
   await page.goto('/cards');
-  // Wait for card grid to be visible (cards loaded)
-  await page.waitForSelector('[data-testid="card-tile"], .grid > div', { timeout: 15000 });
+  await page.waitForSelector('[data-testid="card-tile"]', { timeout: 15000 });
+}
+
+const cardCountSummary = (page: import('@playwright/test').Page) =>
+  page.locator('text=/Showing \\d+ cards/');
+
+async function getCardCount(page: import('@playwright/test').Page): Promise<number> {
+  const text = await cardCountSummary(page).textContent();
+  return parseInt(text?.match(/\d+/)?.[0] ?? '0', 10);
 }
 
 test.describe('Card database browser', () => {
@@ -32,79 +39,54 @@ test.describe('Card database browser', () => {
   test('Red color filter reduces card count', async ({ page }) => {
     await registerAndGoToCards(page);
 
-    // Get total card count before filtering
-    const summaryBefore = await page.locator('text=/Showing \\d+ cards/').textContent();
-    const totalBefore = parseInt(summaryBefore?.match(/\d+/)?.[0] ?? '0', 10);
+    const totalBefore = await getCardCount(page);
     expect(totalBefore).toBeGreaterThan(0);
 
-    // Apply Red filter
     await page.getByRole('button', { name: 'Red' }).click();
-    await page.waitForTimeout(100);
+    await expect(cardCountSummary(page)).toContainText('· Red', { timeout: 3000 });
 
-    // Count should decrease
-    const summaryAfter = await page.locator('text=/Showing \\d+ cards/').textContent();
-    const totalAfter = parseInt(summaryAfter?.match(/\d+/)?.[0] ?? '0', 10);
+    const totalAfter = await getCardCount(page);
     expect(totalAfter).toBeGreaterThan(0);
     expect(totalAfter).toBeLessThan(totalBefore);
-
-    // Summary line should mention Red
-    await expect(page.locator('text=/· Red/')).toBeVisible();
   });
 
   test('type + color combined filter narrows results', async ({ page }) => {
     await registerAndGoToCards(page);
 
-    // Filter by Leader type
     await page.getByRole('button', { name: 'Leader' }).click();
-    await page.waitForTimeout(100);
-    const summaryLeader = await page.locator('text=/Showing \\d+ cards/').textContent();
-    const leaderCount = parseInt(summaryLeader?.match(/\d+/)?.[0] ?? '0', 10);
+    await expect(cardCountSummary(page)).toContainText('· Leader', { timeout: 3000 });
+    const leaderCount = await getCardCount(page);
 
-    // Also filter by Red color
     await page.getByRole('button', { name: 'Red' }).click();
-    await page.waitForTimeout(100);
-    const summaryCombo = await page.locator('text=/Showing \\d+ cards/').textContent();
-    const comboCount = parseInt(summaryCombo?.match(/\d+/)?.[0] ?? '0', 10);
+    await expect(cardCountSummary(page)).toContainText('· Leader · Red', { timeout: 3000 });
+    const comboCount = await getCardCount(page);
 
     expect(comboCount).toBeGreaterThan(0);
     expect(comboCount).toBeLessThanOrEqual(leaderCount);
-
-    // Summary line should mention both filters
-    await expect(page.locator('text=/· Leader · Red/')).toBeVisible();
   });
 
   test('search narrows results and shows filter summary', async ({ page }) => {
     await registerAndGoToCards(page);
 
-    // Type a search query
     await page.getByPlaceholder('Search by card name...').fill('Luffy');
-    await page.waitForTimeout(400); // wait for debounce
+    await expect(cardCountSummary(page)).toContainText('"Luffy"', { timeout: 3000 });
 
-    const summary = await page.locator('text=/Showing \\d+ cards/').textContent();
-    const count = parseInt(summary?.match(/\d+/)?.[0] ?? '0', 10);
+    const count = await getCardCount(page);
     expect(count).toBeGreaterThan(0);
-
-    // Summary should include the search term
-    await expect(page.locator('text=/"Luffy"/')).toBeVisible();
   });
 
   test('no-results state shows clear filters button that resets', async ({ page }) => {
     await registerAndGoToCards(page);
 
     await page.getByPlaceholder('Search by card name...').fill('xyznotexist99999');
-    await page.waitForTimeout(400); // wait for debounce
+    await expect(page.getByText('No cards found')).toBeVisible({ timeout: 3000 });
 
-    await expect(page.getByText('No cards found')).toBeVisible();
     const clearBtn = page.getByRole('button', { name: 'Clear filters' });
     await expect(clearBtn).toBeVisible();
-
     await clearBtn.click();
-    await page.waitForTimeout(200);
 
-    // After clearing, should show cards again
-    await expect(page.getByText('No cards found')).not.toBeVisible();
-    const summary = await page.locator('text=/Showing \\d+ cards/').textContent();
-    const count = parseInt(summary?.match(/\d+/)?.[0] ?? '0', 10);
+    await expect(page.getByText('No cards found')).not.toBeVisible({ timeout: 3000 });
+    const count = await getCardCount(page);
     expect(count).toBeGreaterThan(0);
   });
 });

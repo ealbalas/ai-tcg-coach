@@ -81,7 +81,7 @@ function CardTile({ card }: { card: CardEntry }) {
   const hasEffect = Boolean(card.effect);
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-gray-600 transition-colors flex flex-col" style={{ aspectRatio: '7/10' }}>
+    <div data-testid="card-tile" className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-gray-600 transition-colors flex flex-col" style={{ aspectRatio: '7/10' }}>
       {/* Image - top 60% */}
       <div className="relative flex-none overflow-hidden" style={{ height: '60%' }}>
         {card.image ? (
