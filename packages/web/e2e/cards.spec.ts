@@ -20,7 +20,7 @@ async function registerAndGoToCards(page: import('@playwright/test').Page) {
 }
 
 const cardCountSummary = (page: import('@playwright/test').Page) =>
-  page.locator('text=/Showing \\d+ cards/');
+  page.locator('text=/Showing \\d+ cards?/');
 
 async function getCardCount(page: import('@playwright/test').Page): Promise<number> {
   const text = await cardCountSummary(page).textContent();
