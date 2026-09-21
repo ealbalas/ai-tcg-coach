@@ -132,6 +132,49 @@ export async function getCoachingStatus(id: string): Promise<{ coaching_status: 
   return request<{ coaching_status: string }>(`/api/games/${id}/coaching-status`);
 }
 
+export interface CardOnBoard {
+  id: string;
+  name: string | null;
+  active: boolean;
+  donAttached: number;
+}
+
+export interface LeaderOnBoard extends CardOnBoard {
+  life: number;
+}
+
+export interface PlayerState {
+  username: string;
+  leader: LeaderOnBoard;
+  characters: CardOnBoard[];
+  hand: Array<{ id: string; name: string | null }>;
+  handCount: number;
+  don: { total: number; active: number; rested: number; attachedToLeader: number };
+  trash: Array<{ id: string; name: string | null }>;
+  life: number;
+}
+
+export interface TurnState {
+  turn: number;
+  activePlayer: 1 | 2;
+  actions: string[];
+  boardAfter: { player1: PlayerState; player2: PlayerState };
+}
+
+export interface ReplayResponse {
+  gameId: string | null;
+  player1Username: string;
+  player2Username: string;
+  player1LeaderId: string | null;
+  player2LeaderId: string | null;
+  winner: string | null;
+  turns: TurnState[];
+}
+
+export async function getReplay(id: string): Promise<ReplayResponse> {
+  return request<ReplayResponse>(`/api/games/${id}/replay`);
+}
+
 export interface CardEntry {
   id: string;
   name: string;

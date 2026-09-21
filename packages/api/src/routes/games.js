@@ -1,7 +1,8 @@
-import { writeFile, unlink, mkdir } from 'fs/promises';
+import { writeFile, readFile, unlink, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { pool } from '../db.js';
 import { parseLog } from '../parser.js';
+import { buildReplay } from '../replay.js';
 import { runHeuristics } from '../coaching.js';
 import { authenticate } from '../middleware/auth.js';
 import { getCardName, getCardType, getCardDetails } from '../cards.js';
@@ -251,6 +252,31 @@ export async function gamesRoutes(fastify, opts = {}) {
       turns: enrichedTurns,
       coaching_notes: notesResult.rows,
     };
+  });
+
+  fastify.get('/api/games/:id/replay', {
+    preHandler: authenticate,
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const gameResult = await db.query(
+      'SELECT id, raw_log_path FROM games WHERE id = $1 AND user_id = $2',
+      [id, request.userId],
+    );
+    if (gameResult.rows.length === 0) {
+      return reply.status(404).send({ error: 'Game not found' });
+    }
+    const game = gameResult.rows[0];
+    if (!game.raw_log_path) {
+      return reply.status(404).send({ error: 'Log file not available' });
+    }
+    let logText;
+    try {
+      logText = await readFile(game.raw_log_path, 'utf8');
+    } catch {
+      return reply.status(404).send({ error: 'Log file not found on disk' });
+    }
+    const replay = buildReplay(logText, id);
+    return replay;
   });
 
   fastify.get('/api/games/:id/coaching-status', {
