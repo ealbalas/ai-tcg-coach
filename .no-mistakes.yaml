@@ -1,2 +1,2 @@
 commands:
-  test: cd packages/web && npm test
+  test: cd packages/web && npm ci && npm test

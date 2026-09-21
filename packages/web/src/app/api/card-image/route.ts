@@ -9,18 +9,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return new NextResponse(null, { status: 400 });
   }
 
-  const urls = [
-    `https://en.onepiece-cardgame.com/images/cardlist/card/${id}.png`,
-    `https://asia-en.onepiece-cardgame.com/images/cardlist/card/${id}.png`,
+  const set = id.split('-')[0];
+
+  const sources = [
+    { url: `https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/one-piece/${set}/${id}_EN.webp`, type: 'image/webp' },
+    { url: `https://en.onepiece-cardgame.com/images/cardlist/card/${id}.png`, type: 'image/png' },
+    { url: `https://asia-en.onepiece-cardgame.com/images/cardlist/card/${id}.png`, type: 'image/png' },
   ];
 
-  for (const url of urls) {
+  for (const { url, type } of sources) {
     try {
       const upstream = await fetch(url);
       if (upstream.ok) {
         return new NextResponse(upstream.body, {
           headers: {
-            'content-type': 'image/png',
+            'content-type': type,
             'cache-control': 'public, max-age=86400',
           },
         });
