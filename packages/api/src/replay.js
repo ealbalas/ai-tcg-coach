@@ -139,10 +139,10 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
   // Set when End Turn arrives before snapshots are complete
   let pendingEndTurn = null;
 
-  // DON!! totals per card ID; persists across turns, cleared on Destroyed
-  const donByCardId = {};
-  // Cards that attacked this turn; reset per turn
-  let restedCards = new Set();
+  // DON!! totals per (player, card ID); persists across turns, cleared on Destroyed
+  let donByCardId = { 1: {}, 2: {} };
+  // Cards that attacked this turn per player; reset per turn
+  let restedCards = { 1: new Set(), 2: new Set() };
 
   const snapBuf = { 1: emptySnap(), 2: emptySnap() };
 
@@ -153,8 +153,8 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
     const characters = (snap.board ?? []).map((id) => ({
       id,
       name: getCardName(id) ?? id,
-      active: !restedCards.has(id),
-      donAttached: donByCardId[id] ?? 0,
+      active: !restedCards[playerNum].has(id),
+      donAttached: donByCardId[playerNum][id] ?? 0,
     }));
     const hand = (snap.hand ?? []).map((id) => ({ id, name: getCardName(id) ?? id }));
     const trash = (snap.trash ?? []).map((id) => ({ id, name: getCardName(id) ?? id }));
@@ -168,7 +168,7 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
       leader: {
         ...orig.leader,
         life,
-        donAttached: donByCardId[orig.leader.id] ?? 0,
+        donAttached: donByCardId[playerNum][orig.leader.id] ?? 0,
       },
     };
   }
@@ -184,7 +184,7 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
       },
     });
     currentActions = [];
-    restedCards = new Set();
+    restedCards = { 1: new Set(), 2: new Set() };
     snapBuf[1] = emptySnap();
     snapBuf[2] = emptySnap();
   }
@@ -208,9 +208,15 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
       if (snapComplete(snapBuf)) {
         finalizeTurn(turnNum, activePlayer);
       } else {
-        pendingEndTurn = { turnNum, activePlayer, actions: [...currentActions], restedCards: new Set(restedCards) };
+        pendingEndTurn = {
+          turnNum,
+          activePlayer,
+          actions: [...currentActions],
+          restedCards: { 1: new Set(restedCards[1]), 2: new Set(restedCards[2]) },
+          donByCardId: { 1: { ...donByCardId[1] }, 2: { ...donByCardId[2] } },
+        };
         currentActions = [];
-        restedCards = new Set();
+        restedCards = { 1: new Set(), 2: new Set() };
       }
       turnNum++;
       activePlayer = activePlayer === 1 ? 2 : 1;
@@ -218,25 +224,30 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
     } else if ((m = DEPLOY_RE.exec(line))) {
       currentActions.push(`Deployed ${m[2]}`);
     } else if ((m = ATTACK_RE.exec(line))) {
-      restedCards.add(m[4]);
+      const ap = nameToPlayer[m[1]];
+      if (ap) restedCards[ap].add(m[4]);
       currentActions.push(`${m[2]} attacking ${m[5]}`);
     } else if ((m = DON_ATTACH_RE.exec(line))) {
-      donByCardId[m[5]] = parseInt(m[6], 10);
+      const dp = nameToPlayer[m[1]];
+      if (dp) donByCardId[dp][m[5]] = parseInt(m[6], 10);
       currentActions.push(`Attach ${m[2]} DON!! to ${m[3]} (${m[6]} Total)`);
     } else if ((m = DISCARD_COUNTER_RE.exec(line))) {
       currentActions.push(`Discarded ${m[2]} for counter`);
     } else if ((m = DESTROYED_RE.exec(line))) {
-      delete donByCardId[m[4]];
+      const xp = nameToPlayer[m[1]];
+      if (xp) delete donByCardId[xp][m[4]];
       currentActions.push(`${m[2]} Destroyed`);
     }
 
     if (pendingEndTurn !== null && snapComplete(snapBuf)) {
       const nextActions = currentActions;
       const nextRested = restedCards;
-      ({ actions: currentActions, restedCards } = pendingEndTurn);
+      const nextDon = donByCardId;
+      ({ actions: currentActions, restedCards, donByCardId } = pendingEndTurn);
       finalizeTurn(pendingEndTurn.turnNum, pendingEndTurn.activePlayer);
       currentActions = nextActions;
       restedCards = nextRested;
+      donByCardId = nextDon;
       pendingEndTurn = null;
     }
   }

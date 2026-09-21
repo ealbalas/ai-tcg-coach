@@ -222,6 +222,83 @@ describe('buildReplay - pendingEndTurn state isolation', () => {
   });
 });
 
+describe('buildReplay - cross-player card-ID isolation', () => {
+  it('rested state from one player does not mark same card ID as rested for the other player', () => {
+    // Both players have OP01-016 on their board; only Alice attacks with it.
+    const log = BASE_HEADER
+      + '[Alice#1234] Deploy Nami ["OP01-016">OP01-016]\n'
+      + '[Bob#5678] Deploy Nami ["OP01-016">OP01-016]\n'
+      + '[Alice#1234] Nami ["OP01-016">OP01-016] attacking Bob ["OP01-002">OP01-002]\n'
+      + '[Alice#1234] Hand: []\n'
+      + '[Alice#1234] Board: [OP01-016]\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 5\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: [OP01-016]\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n'
+      + '[Alice#1234] End Turn\n';
+    const replay = buildReplay(log);
+    const p1After = replay.turns[0].boardAfter.player1;
+    const p2After = replay.turns[0].boardAfter.player2;
+    const aliceNami = p1After.characters.find((c) => c.id === 'OP01-016');
+    const bobNami = p2After.characters.find((c) => c.id === 'OP01-016');
+    assert.ok(aliceNami, 'Alice must have OP01-016');
+    assert.ok(bobNami, 'Bob must have OP01-016');
+    assert.strictEqual(aliceNami.active, false, 'Alice attacked - her Nami must be rested');
+    assert.strictEqual(bobNami.active, true, 'Bob did not attack - his Nami must be active');
+  });
+
+  it('DON!! on one player does not bleed to same card ID on the other player', () => {
+    // Both players have OP01-016; only Alice attaches DON!! to hers.
+    const log = BASE_HEADER
+      + '[Alice#1234] Deploy Nami ["OP01-016">OP01-016]\n'
+      + '[Bob#5678] Deploy Nami ["OP01-016">OP01-016]\n'
+      + '[Alice#1234] Attach 3 Don to Nami ["OP01-016">OP01-016] (3 Total)\n'
+      + '[Alice#1234] Hand: []\n'
+      + '[Alice#1234] Board: [OP01-016]\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 5\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: [OP01-016]\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n'
+      + '[Alice#1234] End Turn\n';
+    const replay = buildReplay(log);
+    const p1After = replay.turns[0].boardAfter.player1;
+    const p2After = replay.turns[0].boardAfter.player2;
+    const aliceNami = p1After.characters.find((c) => c.id === 'OP01-016');
+    const bobNami = p2After.characters.find((c) => c.id === 'OP01-016');
+    assert.ok(aliceNami, 'Alice must have OP01-016');
+    assert.ok(bobNami, 'Bob must have OP01-016');
+    assert.strictEqual(aliceNami.donAttached, 3, 'Alice attached 3 DON!!');
+    assert.strictEqual(bobNami.donAttached, 0, "Bob's Nami must have 0 DON!!");
+  });
+});
+
+describe('buildReplay - DON!! pendingEndTurn state isolation', () => {
+  it("DON!! attached in Turn 2 does not bleed into Turn 1's board snapshot", () => {
+    // Alice End Turn before snapshots; Bob attaches DON!! in Turn 2 before Turn 1 snapshots arrive.
+    const DON_BLEED_LOG = BASE_HEADER
+      + '[Alice#1234] End Turn\n'
+      + '[Bob#5678] Deploy Nico Robin ["OP01-030">OP01-030]\n'
+      + '[Bob#5678] Attach 2 Don to Nico Robin ["OP01-030">OP01-030] (2 Total)\n'
+      + '[Alice#1234] Hand: []\n'
+      + '[Alice#1234] Board: []\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 5\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: [OP01-030]\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n';
+    const replay = buildReplay(DON_BLEED_LOG);
+    const p2After = replay.turns[0].boardAfter.player2;
+    const robin = p2After.characters.find((c) => c.id === 'OP01-030');
+    assert.ok(robin, 'Nico Robin must appear in Turn 1 board snapshot');
+    assert.strictEqual(robin.donAttached, 0, 'Robin had 0 DON!! at end of Turn 1; Turn 2 attachment must not bleed in');
+  });
+});
+
 describe('buildReplay - winner detection', () => {
   it('names player 2 as winner when player 1 disconnects', () => {
     const log = BASE_HEADER + 'Alice#1234 Has Disconnected\n';
