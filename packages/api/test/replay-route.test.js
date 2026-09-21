@@ -85,7 +85,7 @@ describe('GET /api/games/:id/replay - response shape', () => {
     assert.strictEqual(response.statusCode, 200);
     const body = JSON.parse(response.body);
 
-    assert.ok('gameId' in body, 'Response must include gameId');
+    assert.strictEqual(body.gameId, 'replay-test-id');
     assert.ok('player1Username' in body, 'Response must include player1Username');
     assert.ok('player2Username' in body, 'Response must include player2Username');
     assert.ok('player1LeaderId' in body, 'Response must include player1LeaderId');

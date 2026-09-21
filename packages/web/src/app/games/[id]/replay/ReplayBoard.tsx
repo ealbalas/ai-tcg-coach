@@ -134,8 +134,8 @@ function HandRow({ hand, handCount }: { hand: PlayerState['hand']; handCount: nu
 
   return (
     <div className="flex gap-2 flex-wrap items-end min-h-[5rem]">
-      {hand.map((h) => (
-        <CardImage key={h.id} id={h.id} name={h.name} active />
+      {hand.map((h, i) => (
+        <CardImage key={`${h.id}-${i}`} id={h.id} name={h.name} active />
       ))}
       {Array.from({ length: unknownCount }).map((_, i) => (
         <CardImage key={`unk-${i}`} id={null} faceDown active />
