@@ -31,6 +31,7 @@ const TRASH_SNAP_RE = /^\[(.+?)\] Trash: \[([^\]]*)\]$/;
 const LIFE_SNAP_RE = /^\[(.+?)\] Life: (\d+)$/;
 
 function createInitialPlayerState(username, leaderId) {
+  const leaderDetails = leaderId ? getCardDetails(leaderId) : null;
   return {
     username: username ?? 'Unknown',
     leader: {
@@ -39,6 +40,10 @@ function createInitialPlayerState(username, leaderId) {
       active: true,
       donAttached: 0,
       life: STANDARD_LIFE,
+      power: leaderDetails?.power ?? null,
+      effect: leaderDetails?.effect ?? null,
+      type: leaderDetails?.type ?? null,
+      cost: leaderDetails?.cost ?? null,
     },
     characters: [],
     hand: [],

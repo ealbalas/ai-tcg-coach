@@ -225,7 +225,6 @@ describe('ReplayBoard', () => {
   });
 
   it('CardEnlargePopup renders with power and effect when hovered', () => {
-    Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, writable: true, configurable: true });
     const turn = makeTurn({
       boardAfter: {
         player1: makePlayerState('Alice#1234', 'OP01-001', {
@@ -261,7 +260,6 @@ describe('ReplayBoard', () => {
   });
 
   it('hover on character card shows the popup', () => {
-    Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, writable: true, configurable: true });
     const turn = makeTurn({
       boardAfter: {
         player1: makePlayerState('Alice#1234', 'OP01-001', {
