@@ -208,7 +208,9 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
       if (snapComplete(snapBuf)) {
         finalizeTurn(turnNum, activePlayer);
       } else {
-        pendingEndTurn = { turnNum, activePlayer };
+        pendingEndTurn = { turnNum, activePlayer, actions: [...currentActions], restedCards: new Set(restedCards) };
+        currentActions = [];
+        restedCards = new Set();
       }
       turnNum++;
       activePlayer = activePlayer === 1 ? 2 : 1;
@@ -229,7 +231,12 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
     }
 
     if (pendingEndTurn !== null && snapComplete(snapBuf)) {
+      const nextActions = currentActions;
+      const nextRested = restedCards;
+      ({ actions: currentActions, restedCards } = pendingEndTurn);
       finalizeTurn(pendingEndTurn.turnNum, pendingEndTurn.activePlayer);
+      currentActions = nextActions;
+      restedCards = nextRested;
       pendingEndTurn = null;
     }
   }
@@ -241,7 +248,7 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
     turns.push({
       turn: num,
       activePlayer: player,
-      actions: currentActions,
+      actions: pendingEndTurn ? pendingEndTurn.actions : currentActions,
       boardAfter: {
         player1: deepClone(pState[1]),
         player2: deepClone(pState[2]),

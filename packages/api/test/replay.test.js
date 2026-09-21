@@ -172,6 +172,56 @@ describe('buildReplay - gameplay text lines', () => {
   });
 });
 
+describe('buildReplay - pendingEndTurn state isolation', () => {
+  // End Turn arrives before snapshots; Turn 2 events must not bleed into Turn 1.
+  const INTERLEAVED_LOG = BASE_HEADER
+    + '[Alice#1234] Deploy Nami ["OP01-016">OP01-016]\n'
+    + '[Alice#1234] End Turn\n'
+    + '[Bob#5678] Deploy Nico Robin ["OP01-030">OP01-030]\n'
+    + '[Alice#1234] Hand: [OP01-020]\n'
+    + '[Alice#1234] Board: [OP01-016]\n'
+    + '[Alice#1234] Trash: []\n'
+    + '[Alice#1234] Life: 5\n'
+    + '[Bob#5678] Hand: [OP01-031]\n'
+    + '[Bob#5678] Board: []\n'
+    + '[Bob#5678] Trash: []\n'
+    + '[Bob#5678] Life: 5\n';
+
+  it("turn 1 actions contain only Alice's deploy, not Bob's Turn-2 deploy", () => {
+    const replay = buildReplay(INTERLEAVED_LOG);
+    const turn1Actions = replay.turns[0].actions;
+    assert.ok(
+      turn1Actions.some((a) => /Nami|OP01-016/i.test(a)),
+      `Turn 1 must include Alice's deploy: ${JSON.stringify(turn1Actions)}`,
+    );
+    assert.ok(
+      !turn1Actions.some((a) => /Robin|OP01-030/i.test(a)),
+      `Turn 1 must NOT include Bob's Turn-2 deploy: ${JSON.stringify(turn1Actions)}`,
+    );
+  });
+
+  it("rested state from Turn 2 does not bleed into Turn 1's board snapshot", () => {
+    // Bob attacks with OP01-030 during Turn 2; Turn 1 snapshots arrive after.
+    // Without the fix, OP01-030 ends up in restedCards when Turn 1's board is built.
+    const RESTED_BLEED_LOG = BASE_HEADER
+      + '[Alice#1234] End Turn\n'
+      + '[Bob#5678] Nico Robin ["OP01-030">OP01-030] attacking Alice ["OP01-001">OP01-001]\n'
+      + '[Alice#1234] Hand: []\n'
+      + '[Alice#1234] Board: []\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 4\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: [OP01-030]\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n';
+    const replay = buildReplay(RESTED_BLEED_LOG);
+    const p2After = replay.turns[0].boardAfter.player2;
+    const robin = p2After.characters.find((c) => c.id === 'OP01-030');
+    assert.ok(robin, 'Nico Robin must appear in Turn 1 board snapshot');
+    assert.strictEqual(robin.active, true, 'Robin attacked in Turn 2; it must be active in Turn 1 snapshot');
+  });
+});
+
 describe('buildReplay - winner detection', () => {
   it('names player 2 as winner when player 1 disconnects', () => {
     const log = BASE_HEADER + 'Alice#1234 Has Disconnected\n';
