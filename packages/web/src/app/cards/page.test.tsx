@@ -124,7 +124,7 @@ describe('card-image proxy', () => {
     vi.restoreAllMocks();
   });
 
-  it('tries the western EN domain first', async () => {
+  it('tries the Limitless CDN first', async () => {
     const mockBody = new ReadableStream();
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
@@ -137,11 +137,10 @@ describe('card-image proxy', () => {
 
     const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls.length).toBeGreaterThanOrEqual(1);
-    expect(calls[0][0]).toContain('en.onepiece-cardgame.com');
-    expect(calls[0][0]).not.toContain('asia-en');
+    expect(calls[0][0]).toContain('limitlesstcg.nyc3.cdn.digitaloceanspaces.com');
   });
 
-  it('falls back to asia-en when western EN returns non-2xx', async () => {
+  it('falls back to en.onepiece-cardgame.com when Limitless returns non-2xx', async () => {
     const mockBody = new ReadableStream();
     (global.fetch as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({ ok: false })
@@ -152,8 +151,8 @@ describe('card-image proxy', () => {
     const res = await GET(req);
 
     const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls[0][0]).toContain('en.onepiece-cardgame.com');
-    expect(calls[1][0]).toContain('asia-en.onepiece-cardgame.com');
+    expect(calls[0][0]).toContain('limitlesstcg.nyc3.cdn.digitaloceanspaces.com');
+    expect(calls[1][0]).toContain('en.onepiece-cardgame.com');
     expect(res.status).toBe(200);
   });
 
