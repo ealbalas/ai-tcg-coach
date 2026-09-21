@@ -137,19 +137,32 @@ export interface CardOnBoard {
   name: string | null;
   active: boolean;
   donAttached: number;
+  power?: number | null;
+  effect?: string | null;
+  type?: string | null;
+  cost?: number | null;
 }
 
 export interface LeaderOnBoard extends CardOnBoard {
   life: number;
 }
 
+export interface HandCard {
+  id: string;
+  name: string | null;
+  power?: number | null;
+  effect?: string | null;
+  type?: string | null;
+  cost?: number | null;
+}
+
 export interface PlayerState {
   username: string;
   leader: LeaderOnBoard;
   characters: CardOnBoard[];
-  hand: Array<{ id: string; name: string | null }>;
+  hand: HandCard[];
   handCount: number;
-  don: { total: number; active: number; rested: number; attachedToLeader: number };
+  don: { total: number; active: number; rested: number; attachedToLeader: number; totalAttached: number };
   trash: Array<{ id: string; name: string | null }>;
   life: number;
 }

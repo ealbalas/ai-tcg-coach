@@ -11,7 +11,7 @@
  */
 
 import { parseLog } from './parser.js';
-import { getCardName } from './cards.js';
+import { getCardName, getCardDetails } from './cards.js';
 
 const STANDARD_LIFE = 5;
 const STANDARD_DON = 10;
@@ -150,14 +150,34 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
     const snap = snapBuf[playerNum];
     const orig = pState[playerNum];
     const life = snap.life ?? orig.life;
-    const characters = (snap.board ?? []).map((id) => ({
-      id,
-      name: getCardName(id) ?? id,
-      active: !restedCards[playerNum].has(id),
-      donAttached: donByCardId[playerNum][id] ?? 0,
-    }));
-    const hand = (snap.hand ?? []).map((id) => ({ id, name: getCardName(id) ?? id }));
+    const characters = (snap.board ?? []).map((id) => {
+      const details = getCardDetails(id);
+      return {
+        id,
+        name: getCardName(id) ?? id,
+        active: !restedCards[playerNum].has(id),
+        donAttached: donByCardId[playerNum][id] ?? 0,
+        power: details?.power ?? null,
+        effect: details?.effect ?? null,
+        type: details?.type ?? null,
+        cost: details?.cost ?? null,
+      };
+    });
+    const hand = (snap.hand ?? []).map((id) => {
+      const details = getCardDetails(id);
+      return {
+        id,
+        name: getCardName(id) ?? id,
+        power: details?.power ?? null,
+        effect: details?.effect ?? null,
+        type: details?.type ?? null,
+        cost: details?.cost ?? null,
+      };
+    });
     const trash = (snap.trash ?? []).map((id) => ({ id, name: getCardName(id) ?? id }));
+    const attachedToLeader = donByCardId[playerNum][orig.leader.id] ?? 0;
+    const attachedToChars = characters.reduce((sum, c) => sum + c.donAttached, 0);
+    const leaderDetails = getCardDetails(orig.leader.id);
     return {
       ...orig,
       characters,
@@ -168,7 +188,18 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
       leader: {
         ...orig.leader,
         life,
-        donAttached: donByCardId[playerNum][orig.leader.id] ?? 0,
+        donAttached: attachedToLeader,
+        power: leaderDetails?.power ?? null,
+        effect: leaderDetails?.effect ?? null,
+        type: leaderDetails?.type ?? null,
+        cost: leaderDetails?.cost ?? null,
+      },
+      don: {
+        ...orig.don,
+        attachedToLeader,
+        totalAttached: attachedToLeader + attachedToChars,
+        active: 0,
+        rested: 0,
       },
     };
   }
