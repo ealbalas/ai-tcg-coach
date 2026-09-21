@@ -275,7 +275,7 @@ export async function gamesRoutes(fastify, opts = {}) {
     } catch {
       return reply.status(404).send({ error: 'Log file not found on disk' });
     }
-    const replay = buildReplay(logText, parseInt(id, 10));
+    const replay = buildReplay(logText, id);
     return replay;
   });
 

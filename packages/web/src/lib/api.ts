@@ -162,7 +162,7 @@ export interface TurnState {
 }
 
 export interface ReplayResponse {
-  gameId: number | null;
+  gameId: string | null;
   player1Username: string;
   player2Username: string;
   player1LeaderId: string | null;

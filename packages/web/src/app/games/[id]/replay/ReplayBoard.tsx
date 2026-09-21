@@ -97,8 +97,8 @@ function CharacterRow({ characters }: { characters: CardOnBoard[] }) {
   }
   return (
     <div className="flex gap-2 flex-wrap min-h-[5rem]">
-      {characters.map((c) => (
-        <CardImage key={c.id} id={c.id} name={c.name} active={c.active} donAttached={c.donAttached} />
+      {characters.map((c, i) => (
+        <CardImage key={`${c.id}-${i}`} id={c.id} name={c.name} active={c.active} donAttached={c.donAttached} />
       ))}
     </div>
   );
@@ -129,19 +129,14 @@ function DonRow({ don }: { don: PlayerState['don'] }) {
   );
 }
 
-function HandRow({ hand, handCount, faceUp }: { hand: PlayerState['hand']; handCount: number; faceUp: boolean }) {
-  const knownIds = new Set(hand.map((h) => h.id));
+function HandRow({ hand, handCount }: { hand: PlayerState['hand']; handCount: number }) {
   const unknownCount = Math.max(0, handCount - hand.length);
 
   return (
     <div className="flex gap-2 flex-wrap items-end min-h-[5rem]">
-      {faceUp
-        ? hand.map((h) => (
-            <CardImage key={h.id} id={h.id} name={h.name} active />
-          ))
-        : hand.map((h) => (
-            <CardImage key={h.id} id={h.id} name={h.name} active faceDown={false} />
-          ))}
+      {hand.map((h) => (
+        <CardImage key={h.id} id={h.id} name={h.name} active />
+      ))}
       {Array.from({ length: unknownCount }).map((_, i) => (
         <CardImage key={`unk-${i}`} id={null} faceDown active />
       ))}
@@ -166,7 +161,7 @@ function PlayerHalf({
         <span className={`text-xs font-semibold ${labelClass} mb-1 block`}>
           {state.username} - Hand ({state.handCount})
         </span>
-        <HandRow hand={state.hand} handCount={state.handCount} faceUp={isBottom} />
+        <HandRow hand={state.hand} handCount={state.handCount} />
       </div>
 
       {/* DON!! */}

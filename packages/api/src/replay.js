@@ -252,8 +252,8 @@ function applyEvent(event, actingPlayer, pState) {
       return `Discarded ${card.name} for counter`;
     }
     case 'lifeLoss': {
-      opp.life = Math.max(0, opp.life - event.amount);
-      if (opp.leader) opp.leader.life = opp.life;
+      ps.life = Math.max(0, ps.life - event.amount);
+      if (ps.leader) ps.leader.life = ps.life;
       return `${event.playerName} takes ${event.amount} damage`;
     }
     case 'trash': {
