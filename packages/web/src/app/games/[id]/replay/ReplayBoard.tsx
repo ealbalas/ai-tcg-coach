@@ -63,7 +63,7 @@ function CardImage({
   const restClass = active === false ? 'rotate-90' : '';
 
   const handleMouseEnter = () => {
-    if (onHover && id && typeof navigator !== 'undefined' && navigator.maxTouchPoints === 0) {
+    if (onHover && id) {
       onHover({ id, name, power, effect, type, cost, donAttached });
     }
   };

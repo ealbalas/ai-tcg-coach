@@ -43,7 +43,7 @@ function createInitialPlayerState(username, leaderId) {
     characters: [],
     hand: [],
     handCount: 0,
-    don: { total: STANDARD_DON, active: STANDARD_DON, rested: 0, attachedToLeader: 0 },
+    don: { total: STANDARD_DON, active: STANDARD_DON, rested: 0, attachedToLeader: 0, totalAttached: 0 },
     trash: [],
     life: STANDARD_LIFE,
   };
