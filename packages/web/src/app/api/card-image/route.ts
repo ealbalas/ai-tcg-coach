@@ -9,7 +9,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return new NextResponse(null, { status: 400 });
   }
 
-  const set = /^([A-Z0-9]+)-/i.exec(id)?.[1] ?? id;
+  const set = id.split('-')[0];
 
   const sources = [
     { url: `https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/one-piece/${set}/${id}_EN.webp`, type: 'image/webp' },
