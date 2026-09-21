@@ -22,7 +22,8 @@ The first run builds both images, starts PostgreSQL, and runs migrations automat
 3. Click **Upload a game** and select a `.txt` log file exported from OPTCGSim
 4. The game is parsed and heuristic coaching runs immediately
 5. Click the game in the list to see the turn timeline with coaching notes
-6. Click **Card Database** in the navigation to browse the full One Piece TCG card catalog - filter by color and type, or search by card name
+6. Click **View Replay** on a game to step through a visual board reconstruction turn by turn - shows card images, DON!! attached to characters and the leader, both leaders, and both players' hands
+7. Click **Card Database** in the navigation to browse the full One Piece TCG card catalog - filter by color and type, or search by card name
 
 ## Configuration
 

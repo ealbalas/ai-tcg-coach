@@ -60,9 +60,8 @@ CHK line: `RZ1|CHK|<seq>|<player>|<f0..f9>`
 - `f8`: phase-complete flag (0 during setup, 1 when setup phase ends)
 - All other numeric fields: unknown, stored raw
 
-**Important limitation:** the available sample only covers the card-placement setup phase.
-In-game action types (attacks, DON!!, card plays) have not been confirmed from real game logs.
-The parser stores all unknown fields raw so they can be reinterpreted once richer samples arrive.
+**Scope:** `parser.js` covers only the RZ1 pipe-delimited setup phase.
+Confirmed in-game gameplay line formats (Deploy, Attack, DON!! Attach, End Turn, Destroyed, and end-of-turn Hand/Board/Trash/Life snapshots) are documented in `packages/api/src/replay.js` as regex patterns with inline comments.
 
 ## Card data cache
 
@@ -91,10 +90,23 @@ Implemented heuristics:
 - **Leader recognition** (`checkLeaderRecognition`): game-level note (turn_id = NULL). Card name resolved via `getCardName`. `OP` prefix: set number ≤5 = classic tip, >5 = newer-meta tip. `ST` prefix = starter-deck tip. Other prefixes = generic recognition note.
 
 Heuristics intentionally skipped (and why):
-- **DON!! unused**: requires confirmed action-type fields for DON!! gain/attach/cost - not yet reverse-engineered from log samples.
-- **No attacks made**: same - attack action codes are not confirmed from available samples.
+- **DON!! unused**: coaching.js operates on RZ1 setup data from `parser.js`; DON!! events are only in gameplay-mode lines parsed by `replay.js`. Enabling this heuristic requires wiring `buildReplay` output into the coaching pipeline.
+- **No attacks made**: same - attack events are in gameplay-mode lines, not in the RZ1 data coaching.js reads.
 
-Future work: collect real in-game OPTCGSim logs that include attacks, DON!!, and main-phase card plays, then update the parser field documentation and enable the skipped heuristics.
+## Visual replay
+
+Implementation: `packages/api/src/replay.js` (builder), `packages/api/src/routes/games.js` (endpoint), `packages/web/src/app/games/[id]/replay/` (frontend).
+API endpoint: `GET /api/games/:id/replay` - reads the raw log from disk and returns a `ReplayResponse` (TypeScript types in `packages/web/src/lib/api.ts`).
+
+**Two parsing modes (auto-detected by presence of `[Player] End Turn` lines):**
+- **Gameplay mode**: uses confirmed OPTCGSim gameplay event lines (Deploy, Attack, DON!! Attach, Destroyed, End Turn) plus authoritative end-of-turn state snapshots (`[Player] Hand/Board/Trash/Life`).
+  The snapshot lines are authoritative for characters, hand, trash, and life; event lines track rested state and per-card DON!! counts between snapshots.
+- **Setup mode**: when no End Turn lines exist (RZ1-only logs), turns come from `parser.js` player-change groups with empty characters/hand.
+
+**State management sharp edges:**
+- `restedCards` and `donByCardId` are keyed `{ 1: ..., 2: ... }` to avoid cross-player contamination when both players field the same card ID.
+- `pendingEndTurn` captures a snapshot of `actions`, `restedCards`, and `donByCardId` when End Turn arrives before all 8 snapshot lines.
+  The flush happens on the line that completes the snapshots, then the outer variables are restored for the next turn.
 
 ## LLM coaching pipeline
 
