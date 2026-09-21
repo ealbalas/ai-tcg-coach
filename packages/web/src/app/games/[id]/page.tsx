@@ -232,6 +232,14 @@ export default function GameDetailPage() {
             - Back
           </Link>
           <h1 className="text-xl font-bold text-white">Game Detail</h1>
+          <div className="ml-auto">
+            <Link
+              href={`/games/${id}/replay`}
+              className="px-3 py-1.5 bg-blue-700 hover:bg-blue-600 text-white text-sm rounded transition-colors"
+            >
+              View Replay
+            </Link>
+          </div>
         </div>
       </header>
 
