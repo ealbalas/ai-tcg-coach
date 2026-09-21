@@ -1,8 +1,8 @@
 /**
  * Unit tests for the replay builder (packages/api/src/replay.js).
  *
- * Uses synthetic log strings that follow the OPTCGSim format documented in
- * packages/api/src/parser.js and AGENTS.md.
+ * Uses synthetic log strings that follow the confirmed OPTCGSim format documented
+ * in AGENTS.md and verified against real match logs.
  */
 
 import { describe, it, before } from 'node:test';
@@ -62,13 +62,31 @@ describe('buildReplay - setup-only log (RZ1 lines only)', () => {
 });
 
 describe('buildReplay - gameplay text lines', () => {
+  // Turn 1: Alice deploys, attaches DON!!, attacks, then snapshots appear before her End Turn.
+  // Turn 2: Bob deploys, then End Turn appears before snapshots (tests both snapshot orderings).
   const GAMEPLAY_LOG = BASE_HEADER
     + '[Alice#1234] Deploy Nami ["OP01-016">OP01-016]\n'
-    + '[Alice#1234] attaches 2 DON!! to OP01-016\n'
-    + '[Alice#1234] attacks with Nami ["OP01-016">OP01-016]\n'
+    + '[Alice#1234] Attach 2 Don to Nami ["OP01-016">OP01-016] (2 Total)\n'
+    + '[Alice#1234] Nami ["OP01-016">OP01-016] attacking Bob ["OP01-002">OP01-002]\n'
+    + '[Alice#1234] Hand: [OP01-020]\n'
+    + '[Alice#1234] Board: [OP01-016]\n'
+    + '[Alice#1234] Trash: []\n'
+    + '[Alice#1234] Life: 5\n'
+    + '[Bob#5678] Hand: [OP01-030,OP01-031]\n'
+    + '[Bob#5678] Board: []\n'
+    + '[Bob#5678] Trash: []\n'
+    + '[Bob#5678] Life: 5\n'
     + '[Alice#1234] End Turn\n'
     + '[Bob#5678] Deploy Nico Robin ["OP01-030">OP01-030]\n'
-    + 'End Turn\n';
+    + '[Bob#5678] End Turn\n'
+    + '[Alice#1234] Hand: [OP01-020]\n'
+    + '[Alice#1234] Board: [OP01-016]\n'
+    + '[Alice#1234] Trash: []\n'
+    + '[Alice#1234] Life: 5\n'
+    + '[Bob#5678] Hand: [OP01-031]\n'
+    + '[Bob#5678] Board: [OP01-030]\n'
+    + '[Bob#5678] Trash: []\n'
+    + '[Bob#5678] Life: 5\n';
 
   it('detects turn boundaries from End Turn markers', () => {
     const replay = buildReplay(GAMEPLAY_LOG);
@@ -91,9 +109,8 @@ describe('buildReplay - gameplay text lines', () => {
       `Expected a deploy entry in: ${JSON.stringify(turn1Actions)}`);
   });
 
-  it('tracks deployed character on the board', () => {
+  it('tracks deployed character on the board via end-of-turn snapshot', () => {
     const replay = buildReplay(GAMEPLAY_LOG);
-    // After turn 1, Alice should have Nami on her board
     const p1After = replay.turns[0].boardAfter.player1;
     assert.ok(
       p1After.characters.some((c) => c.id === 'OP01-016'),
@@ -138,6 +155,20 @@ describe('buildReplay - gameplay text lines', () => {
       p2After.characters.some((c) => c.id === 'OP01-030'),
       `Expected OP01-030 in player2 characters: ${JSON.stringify(p2After.characters)}`,
     );
+  });
+
+  it('life count is set from snapshot', () => {
+    const replay = buildReplay(GAMEPLAY_LOG);
+    assert.strictEqual(replay.turns[0].boardAfter.player1.life, 5);
+    assert.strictEqual(replay.turns[0].boardAfter.player2.life, 5);
+  });
+
+  it('hand cards are populated from snapshot', () => {
+    const replay = buildReplay(GAMEPLAY_LOG);
+    const p1After = replay.turns[0].boardAfter.player1;
+    assert.ok(p1After.hand.some((c) => c.id === 'OP01-020'),
+      `Expected OP01-020 in hand: ${JSON.stringify(p1After.hand)}`);
+    assert.strictEqual(p1After.handCount, 1);
   });
 });
 

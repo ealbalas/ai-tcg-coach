@@ -3,14 +3,11 @@
  * for visual replay of the game.
  *
  * Two parsing modes:
- * - Gameplay mode: when the log contains explicit text messages (Deploy, End Turn, etc.),
- *   those are the primary source of board state transitions.
+ * - Gameplay mode: when the log contains [Player] End Turn lines, those plus authoritative
+ *   end-of-turn state snapshots ([Player] Hand/Board/Trash/Life) are used as the primary
+ *   source of board state.
  * - Setup mode: when only RZ1 pipe-delimited lines are present (initial setup phase only),
  *   turns are derived from player-change groups detected by the base parser.
- *
- * NOTE: Text-based gameplay message formats are inferred from OPTCGSim header conventions
- * (e.g. "[Name#disc] Action details") since no confirmed in-game gameplay log samples are
- * available yet. Extend DEPLOY_RE and friends when real samples confirm the actual format.
  */
 
 import { parseLog } from './parser.js';
@@ -19,41 +16,19 @@ import { getCardName } from './cards.js';
 const STANDARD_LIFE = 5;
 const STANDARD_DON = 10;
 
-// --- Gameplay line patterns ---
-// All assume OPTCGSim's "[Name#disc] Verb ..." convention observed in header lines.
-const DEPLOY_RE = /^\[(.+?)\] [Dd]eploy(?:s|ed)? (.+?) \[".+?">(.+?)\]$/;
-const DRAW_NAMED_RE = /^\[(.+?)\] [Dd]raw(?:s|n)? (.+?) \[".+?">(.+?)\]$/;
-const DON_ATTACH_RE = /^\[(.+?)\] (?:attaches?|attached) (\d+) DON!!.*? to (.+)$/i;
-const ATTACK_RE = /^\[(.+?)\] (?:attacks?|attacking) with (.+?) \[".+?">(.+?)\]/;
-const DISCARD_COUNTER_RE = /^\[(.+?)\] [Dd]iscard(?:s|ed)? (.+?) \[".+?">(.+?)\] for counter/;
-const END_TURN_RE = /^(?:\[.+?\] )?End Turn$/i;
-const LIFE_LOSS_RE = /^\[(.+?)\] (?:takes?|took) (\d+) damage/i;
-const TRASH_RE = /^\[(.+?)\] (?:trashes?|trashed?) (.+?) \[".+?">(.+?)\]/i;
+// Confirmed OPTCGSim gameplay line patterns (from real match logs)
+const DEPLOY_RE = /^\[(.+?)\] Deploy (.+?) \["(.+?)">(.+?)\]$/;
+const ATTACK_RE = /^\[(.+?)\] (.+?) \["(.+?)">(.+?)\] attacking (.+?) \["(.+?)">(.+?)\]/;
+const DISCARD_COUNTER_RE = /^\[(.+?)\] Discard (.+?) \["(.+?)">(.+?)\] for Counter \d+$/;
+const DON_ATTACH_RE = /^\[(.+?)\] Attach (\d+) Don to (.+?) \["(.+?)">(.+?)\] \((\d+) Total\)$/;
+const END_TURN_RE = /^\[(.+?)\] End Turn$/;
+const DESTROYED_RE = /^\[(.+?)\] (.+?) \["(.+?)">(.+?)\] Destroyed$/;
 
-function matchGameplayLine(line) {
-  let m;
-  if (END_TURN_RE.test(line)) return { type: 'endTurn' };
-  if ((m = DEPLOY_RE.exec(line))) return { type: 'deploy', playerName: m[1], cardName: m[2], cardId: m[3] };
-  if ((m = DRAW_NAMED_RE.exec(line))) return { type: 'draw', playerName: m[1], cardName: m[2], cardId: m[3] };
-  if ((m = DON_ATTACH_RE.exec(line))) return { type: 'donAttach', playerName: m[1], count: parseInt(m[2], 10), targetId: m[3].trim() };
-  if ((m = ATTACK_RE.exec(line))) return { type: 'attack', playerName: m[1], cardName: m[2], cardId: m[3] };
-  if ((m = DISCARD_COUNTER_RE.exec(line))) return { type: 'discard', playerName: m[1], cardName: m[2], cardId: m[3] };
-  if ((m = LIFE_LOSS_RE.exec(line))) return { type: 'lifeLoss', playerName: m[1], amount: parseInt(m[2], 10) };
-  if ((m = TRASH_RE.exec(line))) return { type: 'trash', playerName: m[1], cardName: m[2], cardId: m[3] };
-  return null;
-}
-
-function isHeaderOrRZ1(line) {
-  if (line.startsWith('RZ1|')) return true;
-  if (/^Waiting for a Connection with Room ID:/.test(line)) return true;
-  if (/Has Connected$/.test(line)) return true;
-  if (/Has Disconnected$/i.test(line)) return true;
-  if (/has left the game$/i.test(line)) return true;
-  if (/^Version is /.test(line)) return true;
-  if (/^\[.+?\] Leader is /.test(line)) return true;
-  if (/^\[.+?\] Chose to go (?:First|Second)$/.test(line)) return true;
-  return false;
-}
+// Authoritative end-of-turn state snapshots (appear before or after End Turn)
+const HAND_SNAP_RE = /^\[(.+?)\] Hand: \[([^\]]*)\]$/;
+const BOARD_SNAP_RE = /^\[(.+?)\] Board: \[([^\]]*)\]$/;
+const TRASH_SNAP_RE = /^\[(.+?)\] Trash: \[([^\]]*)\]$/;
+const LIFE_SNAP_RE = /^\[(.+?)\] Life: (\d+)$/;
 
 function createInitialPlayerState(username, leaderId) {
   return {
@@ -78,10 +53,14 @@ function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
+function parseIdList(raw) {
+  return raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : [];
+}
+
 /**
  * Parse a raw OPTCGSim log and return a ReplayResponse object.
  * @param {string} logText - raw log file contents
- * @param {number|null} gameId
+ * @param {number|string|null} gameId
  */
 export function buildReplay(logText, gameId = null) {
   const parsed = parseLog(logText);
@@ -95,17 +74,11 @@ export function buildReplay(logText, gameId = null) {
     2: createInitialPlayerState(parsed.player2Name, parsed.player2Leader),
   };
 
-  // Collect gameplay text events (non-header, non-RZ1 lines that match known patterns)
   const lines = logText.split('\n').map((l) => l.trim()).filter(Boolean);
-  const gameplayEvents = [];
-  for (const line of lines) {
-    if (isHeaderOrRZ1(line)) continue;
-    const event = matchGameplayLine(line);
-    if (event) gameplayEvents.push(event);
-  }
+  const hasGameplay = lines.some((l) => END_TURN_RE.test(l));
 
-  const turns = gameplayEvents.length > 0
-    ? buildTurnsFromGameplay(gameplayEvents, pState, nameToPlayer, parsed)
+  const turns = hasGameplay
+    ? buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed)
     : buildTurnsFromSetup(parsed, pState);
 
   return {
@@ -143,7 +116,18 @@ function buildTurnsFromSetup(parsed, pState) {
   });
 }
 
-function buildTurnsFromGameplay(events, pState, nameToPlayer, parsed) {
+function emptySnap() {
+  return { hand: null, board: null, trash: null, life: null };
+}
+
+function snapComplete(snapBuf) {
+  return [1, 2].every((p) => {
+    const s = snapBuf[p];
+    return s.hand !== null && s.board !== null && s.trash !== null && s.life !== null;
+  });
+}
+
+function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
   const firstActivePlayer = parsed.player1GoesFirst === true ? 1
     : parsed.player1GoesFirst === false ? 2
     : (parsed.turns.length > 0 ? parsed.turns[0].player : 1);
@@ -152,34 +136,111 @@ function buildTurnsFromGameplay(events, pState, nameToPlayer, parsed) {
   let turnNum = 1;
   let activePlayer = firstActivePlayer;
   let currentActions = [];
+  // Set when End Turn arrives before snapshots are complete
+  let pendingEndTurn = null;
 
-  for (const event of events) {
-    if (event.type === 'endTurn') {
-      turns.push({
-        turn: turnNum,
-        activePlayer,
-        actions: [...currentActions],
-        boardAfter: {
-          player1: deepClone(pState[1]),
-          player2: deepClone(pState[2]),
-        },
-      });
-      turnNum++;
-      activePlayer = activePlayer === 1 ? 2 : 1;
-      currentActions = [];
-      continue;
-    }
+  // DON!! totals per card ID; persists across turns, cleared on Destroyed
+  const donByCardId = {};
+  // Cards that attacked this turn; reset per turn
+  let restedCards = new Set();
 
-    const actingPlayer = nameToPlayer[event.playerName] ?? null;
-    const desc = applyEvent(event, actingPlayer, pState);
-    if (desc) currentActions.push(desc);
+  const snapBuf = { 1: emptySnap(), 2: emptySnap() };
+
+  function snapshotToPlayerState(playerNum) {
+    const snap = snapBuf[playerNum];
+    const orig = pState[playerNum];
+    const life = snap.life ?? orig.life;
+    const characters = (snap.board ?? []).map((id) => ({
+      id,
+      name: getCardName(id) ?? id,
+      active: !restedCards.has(id),
+      donAttached: donByCardId[id] ?? 0,
+    }));
+    const hand = (snap.hand ?? []).map((id) => ({ id, name: getCardName(id) ?? id }));
+    const trash = (snap.trash ?? []).map((id) => ({ id, name: getCardName(id) ?? id }));
+    return {
+      ...orig,
+      characters,
+      hand,
+      handCount: hand.length,
+      trash,
+      life,
+      leader: {
+        ...orig.leader,
+        life,
+        donAttached: donByCardId[orig.leader.id] ?? 0,
+      },
+    };
   }
 
-  // Flush incomplete trailing turn (game ended without an explicit End Turn)
-  if (currentActions.length > 0) {
+  function finalizeTurn(num, player) {
     turns.push({
-      turn: turnNum,
-      activePlayer,
+      turn: num,
+      activePlayer: player,
+      actions: [...currentActions],
+      boardAfter: {
+        player1: snapshotToPlayerState(1),
+        player2: snapshotToPlayerState(2),
+      },
+    });
+    currentActions = [];
+    restedCards = new Set();
+    snapBuf[1] = emptySnap();
+    snapBuf[2] = emptySnap();
+  }
+
+  for (const line of lines) {
+    let m;
+
+    if ((m = HAND_SNAP_RE.exec(line))) {
+      const p = nameToPlayer[m[1]];
+      if (p) snapBuf[p].hand = parseIdList(m[2]);
+    } else if ((m = BOARD_SNAP_RE.exec(line))) {
+      const p = nameToPlayer[m[1]];
+      if (p) snapBuf[p].board = parseIdList(m[2]);
+    } else if ((m = TRASH_SNAP_RE.exec(line))) {
+      const p = nameToPlayer[m[1]];
+      if (p) snapBuf[p].trash = parseIdList(m[2]);
+    } else if ((m = LIFE_SNAP_RE.exec(line))) {
+      const p = nameToPlayer[m[1]];
+      if (p) snapBuf[p].life = parseInt(m[2], 10);
+    } else if (END_TURN_RE.test(line)) {
+      if (snapComplete(snapBuf)) {
+        finalizeTurn(turnNum, activePlayer);
+      } else {
+        pendingEndTurn = { turnNum, activePlayer };
+      }
+      turnNum++;
+      activePlayer = activePlayer === 1 ? 2 : 1;
+      continue;
+    } else if ((m = DEPLOY_RE.exec(line))) {
+      currentActions.push(`Deployed ${m[2]}`);
+    } else if ((m = ATTACK_RE.exec(line))) {
+      restedCards.add(m[4]);
+      currentActions.push(`${m[2]} attacking ${m[5]}`);
+    } else if ((m = DON_ATTACH_RE.exec(line))) {
+      donByCardId[m[5]] = parseInt(m[6], 10);
+      currentActions.push(`Attach ${m[2]} DON!! to ${m[3]} (${m[6]} Total)`);
+    } else if ((m = DISCARD_COUNTER_RE.exec(line))) {
+      currentActions.push(`Discarded ${m[2]} for counter`);
+    } else if ((m = DESTROYED_RE.exec(line))) {
+      delete donByCardId[m[4]];
+      currentActions.push(`${m[2]} Destroyed`);
+    }
+
+    if (pendingEndTurn !== null && snapComplete(snapBuf)) {
+      finalizeTurn(pendingEndTurn.turnNum, pendingEndTurn.activePlayer);
+      pendingEndTurn = null;
+    }
+  }
+
+  // Flush a trailing incomplete turn (game ended without a final End Turn + snapshot)
+  if (currentActions.length > 0 || pendingEndTurn !== null) {
+    const num = pendingEndTurn ? pendingEndTurn.turnNum : turnNum;
+    const player = pendingEndTurn ? pendingEndTurn.activePlayer : activePlayer;
+    turns.push({
+      turn: num,
+      activePlayer: player,
       actions: currentActions,
       boardAfter: {
         player1: deepClone(pState[1]),
@@ -189,83 +250,4 @@ function buildTurnsFromGameplay(events, pState, nameToPlayer, parsed) {
   }
 
   return turns;
-}
-
-function applyEvent(event, actingPlayer, pState) {
-  if (!actingPlayer || !pState[actingPlayer]) return null;
-  const ps = pState[actingPlayer];
-  const opp = pState[actingPlayer === 1 ? 2 : 1];
-
-  switch (event.type) {
-    case 'deploy': {
-      const card = {
-        id: event.cardId,
-        name: event.cardName || getCardName(event.cardId) || event.cardId,
-        active: true,
-        donAttached: 0,
-      };
-      ps.characters.push(card);
-      ps.hand = ps.hand.filter((h) => h.id !== event.cardId);
-      ps.handCount = Math.max(0, ps.handCount - 1);
-      return `Deployed ${card.name}`;
-    }
-    case 'draw': {
-      const card = {
-        id: event.cardId,
-        name: event.cardName || getCardName(event.cardId) || event.cardId,
-      };
-      ps.hand.push(card);
-      ps.handCount += 1;
-      return `Drew ${card.name}`;
-    }
-    case 'donAttach': {
-      const { targetId, count } = event;
-      const char = ps.characters.find((c) => c.id === targetId);
-      if (char) {
-        char.donAttached += count;
-        ps.don.active = Math.max(0, ps.don.active - count);
-        return `Attached ${count} DON!! to ${char.name ?? targetId}`;
-      }
-      if (ps.leader.id === targetId || targetId.toLowerCase() === 'leader') {
-        ps.leader.donAttached += count;
-        ps.don.attachedToLeader += count;
-        ps.don.active = Math.max(0, ps.don.active - count);
-        return `Attached ${count} DON!! to leader`;
-      }
-      ps.don.active = Math.max(0, ps.don.active - count);
-      return `Attached ${count} DON!! to ${targetId}`;
-    }
-    case 'attack': {
-      const char = ps.characters.find((c) => c.id === event.cardId);
-      if (char) char.active = false;
-      else if (ps.leader.id === event.cardId) ps.leader.active = false;
-      return `Attacked with ${event.cardName ?? event.cardId}`;
-    }
-    case 'discard': {
-      const card = {
-        id: event.cardId,
-        name: event.cardName || getCardName(event.cardId) || event.cardId,
-      };
-      ps.trash.push(card);
-      ps.hand = ps.hand.filter((h) => h.id !== event.cardId);
-      ps.handCount = Math.max(0, ps.handCount - 1);
-      return `Discarded ${card.name} for counter`;
-    }
-    case 'lifeLoss': {
-      ps.life = Math.max(0, ps.life - event.amount);
-      if (ps.leader) ps.leader.life = ps.life;
-      return `${event.playerName} takes ${event.amount} damage`;
-    }
-    case 'trash': {
-      const card = {
-        id: event.cardId,
-        name: event.cardName || getCardName(event.cardId) || event.cardId,
-      };
-      ps.trash.push(card);
-      ps.characters = ps.characters.filter((c) => c.id !== event.cardId);
-      return `Trashed ${card.name}`;
-    }
-    default:
-      return null;
-  }
 }
