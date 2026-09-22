@@ -291,7 +291,10 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
       currentActions.push(`Discarded ${m[2]} for counter`);
     } else if ((m = DESTROYED_RE.exec(line))) {
       const xp = nameToPlayer[m[1]];
-      if (xp) delete donByCardId[xp][m[4]];
+      if (xp) {
+        donPoolByPlayer[xp].rested += donByCardId[xp][m[4]] ?? 0;
+        delete donByCardId[xp][m[4]];
+      }
       currentActions.push(`${m[2]} Destroyed`);
     } else if ((m = DON_DRAW_RE.exec(line))) {
       const dp = nameToPlayer[m[1]];
