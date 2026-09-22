@@ -77,7 +77,7 @@ function CardImage({
   const url = !faceDown ? cardImageUrl(id) : null;
   const sizeClass = size === 'md' ? 'w-24 h-36' : 'w-20 h-28';
   const restClass = active === false ? 'rotate-90' : '';
-  const isCounter = attribute ? /counter/i.test(attribute) : false;
+  const isCounter = /[+\d]+ counter/i.test(effect ?? '');
 
   const handleMouseEnter = () => {
     if (onHover && id) {

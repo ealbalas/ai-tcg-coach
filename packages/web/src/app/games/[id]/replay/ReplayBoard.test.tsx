@@ -307,6 +307,50 @@ describe('ReplayBoard', () => {
     expect(card.className).toContain('ring-yellow-300');
   });
 
+  it('hand card with counter effect shows CTR badge on the card', () => {
+    const turn = makeTurn({
+      actions: [],
+      boardAfter: {
+        player1: makePlayerState('Alice#1234', 'OP01-001', {
+          hand: [{ id: 'OP01-050', name: 'Zoro', effect: '[Blocker][On Play] +1000 Counter' }],
+        }),
+        player2: makePlayerState('Bob#5678', 'OP01-002'),
+      },
+    });
+    render(
+      <ReplayBoard
+        turn={turn}
+        currentTurnIndex={0}
+        totalTurns={1}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByText('CTR').length).toBeGreaterThan(0);
+  });
+
+  it('hand card without counter effect does not show CTR badge', () => {
+    const turn = makeTurn({
+      actions: [],
+      boardAfter: {
+        player1: makePlayerState('Alice#1234', 'OP01-001', {
+          hand: [{ id: 'OP01-020', name: 'Usopp', effect: '[Blocker]' }],
+        }),
+        player2: makePlayerState('Bob#5678', 'OP01-002'),
+      },
+    });
+    render(
+      <ReplayBoard
+        turn={turn}
+        currentTurnIndex={0}
+        totalTurns={1}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText('CTR')).toBeNull();
+  });
+
   it('counter action entry in action log renders the CTR badge', () => {
     const turn = makeTurn({
       actions: ['Deployed Nami', 'Discarded Usopp for counter'],
