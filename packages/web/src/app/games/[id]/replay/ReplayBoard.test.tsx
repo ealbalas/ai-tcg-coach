@@ -285,4 +285,96 @@ describe('ReplayBoard', () => {
     fireEvent.mouseEnter(charCard);
     expect(screen.getByTestId('card-enlarge-popup')).toBeTruthy();
   });
+
+  it('newly drawn hand card has highlight ring class when previousTurn is provided', () => {
+    const prevTurn = makeTurn({
+      turn: 1,
+      boardAfter: {
+        player1: makePlayerState('Alice#1234', 'OP01-001', { hand: [] }),
+        player2: makePlayerState('Bob#5678', 'OP01-002'),
+      },
+    });
+    const currentTurn = makeTurn({
+      turn: 2,
+      boardAfter: {
+        player1: makePlayerState('Alice#1234', 'OP01-001', {
+          hand: [{ id: 'OP01-020', name: 'Usopp' }],
+        }),
+        player2: makePlayerState('Bob#5678', 'OP01-002'),
+      },
+    });
+    render(
+      <ReplayBoard
+        turn={currentTurn}
+        previousTurn={prevTurn}
+        currentTurnIndex={1}
+        totalTurns={3}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+      />,
+    );
+    const card = screen.getByTitle('Usopp');
+    expect(card.className).toContain('ring-yellow-300');
+  });
+
+  it('hand card with counter effect shows CTR badge on the card', () => {
+    const turn = makeTurn({
+      actions: [],
+      boardAfter: {
+        player1: makePlayerState('Alice#1234', 'OP01-001', {
+          hand: [{ id: 'OP01-050', name: 'Zoro', effect: '[Blocker][On Play] +1000 Counter' }],
+        }),
+        player2: makePlayerState('Bob#5678', 'OP01-002'),
+      },
+    });
+    render(
+      <ReplayBoard
+        turn={turn}
+        currentTurnIndex={0}
+        totalTurns={1}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByText('CTR').length).toBeGreaterThan(0);
+  });
+
+  it('hand card without counter effect does not show CTR badge', () => {
+    const turn = makeTurn({
+      actions: [],
+      boardAfter: {
+        player1: makePlayerState('Alice#1234', 'OP01-001', {
+          hand: [{ id: 'OP01-020', name: 'Usopp', effect: '[Blocker]' }],
+        }),
+        player2: makePlayerState('Bob#5678', 'OP01-002'),
+      },
+    });
+    render(
+      <ReplayBoard
+        turn={turn}
+        currentTurnIndex={0}
+        totalTurns={1}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText('CTR')).toBeNull();
+  });
+
+  it('counter action entry in action log renders the CTR badge', () => {
+    const turn = makeTurn({
+      actions: ['Deployed Nami', 'Discarded Usopp for counter'],
+    });
+    render(
+      <ReplayBoard
+        turn={turn}
+        currentTurnIndex={0}
+        totalTurns={1}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+      />,
+    );
+    const badges = screen.getAllByText('CTR');
+    expect(badges.length).toBeGreaterThan(0);
+  });
 });

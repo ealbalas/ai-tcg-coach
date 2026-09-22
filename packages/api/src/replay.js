@@ -175,6 +175,7 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
         effect: details?.effect ?? null,
         type: details?.type ?? null,
         cost: details?.cost ?? null,
+        attribute: details?.attribute ?? null,
       };
     });
     const stage = allBoardCards.filter((c) => c.type?.toLowerCase() === 'stage');
@@ -188,6 +189,7 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
         effect: details?.effect ?? null,
         type: details?.type ?? null,
         cost: details?.cost ?? null,
+        attribute: details?.attribute ?? null,
       };
     });
     const trash = (snap.trash ?? []).map((id) => ({ id, name: getCardName(id) ?? id }));

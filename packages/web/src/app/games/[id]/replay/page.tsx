@@ -109,6 +109,7 @@ export default function ReplayPage() {
 
         <ReplayBoard
           turn={currentTurn}
+          previousTurn={replay.turns[currentTurnIndex - 1] ?? null}
           currentTurnIndex={currentTurnIndex}
           totalTurns={totalTurns}
           onPrev={() => setCurrentTurnIndex((i) => Math.max(0, i - 1))}

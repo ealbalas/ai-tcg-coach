@@ -141,6 +141,7 @@ export interface CardOnBoard {
   effect?: string | null;
   type?: string | null;
   cost?: number | null;
+  attribute?: string | null;
 }
 
 export interface LeaderOnBoard extends CardOnBoard {
@@ -154,6 +155,7 @@ export interface HandCard {
   effect?: string | null;
   type?: string | null;
   cost?: number | null;
+  attribute?: string | null;
 }
 
 export interface PlayerState {

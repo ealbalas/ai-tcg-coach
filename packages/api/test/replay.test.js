@@ -299,6 +299,44 @@ describe('buildReplay - DON!! pendingEndTurn state isolation', () => {
   });
 });
 
+describe('buildReplay - attribute field propagation', () => {
+  it('hand cards include attribute from card details', () => {
+    const log = BASE_HEADER
+      + '[Alice#1234] Hand: [OP01-020]\n'
+      + '[Alice#1234] Board: []\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 5\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: []\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n'
+      + '[Alice#1234] End Turn\n';
+    const replay = buildReplay(log);
+    const p1After = replay.turns[0].boardAfter.player1;
+    const handCard = p1After.hand.find((c) => c.id === 'OP01-020');
+    assert.ok(handCard, 'OP01-020 must appear in hand');
+    assert.ok('attribute' in handCard, 'hand card must have attribute field');
+  });
+
+  it('board cards include attribute from card details', () => {
+    const log = BASE_HEADER
+      + '[Alice#1234] Hand: []\n'
+      + '[Alice#1234] Board: [OP01-016]\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 5\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: []\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n'
+      + '[Alice#1234] End Turn\n';
+    const replay = buildReplay(log);
+    const p1After = replay.turns[0].boardAfter.player1;
+    const boardCard = p1After.characters.find((c) => c.id === 'OP01-016');
+    assert.ok(boardCard, 'OP01-016 must appear on board');
+    assert.ok('attribute' in boardCard, 'board card must have attribute field');
+  });
+});
+
 describe('buildReplay - winner detection', () => {
   it('names player 2 as winner when player 1 disconnects', () => {
     const log = BASE_HEADER + 'Alice#1234 Has Disconnected\n';
