@@ -14,7 +14,7 @@ function makePlayerState(
     characters: [],
     hand: [],
     handCount: 0,
-    don: { total: 10, active: 10, rested: 0, attachedToLeader: 0 },
+    don: { total: 10, active: 0, rested: 0, attachedToLeader: 0, totalAttached: 0 },
     trash: [],
     life: 5,
     ...overrides,
@@ -166,5 +166,119 @@ describe('ReplayBoard', () => {
     );
     expect(screen.getByText('Deployed Nami')).toBeTruthy();
     expect(screen.getByText('Attacked with Nami')).toBeTruthy();
+  });
+
+  it('DonRow shows N attached when totalAttached > 0', () => {
+    const turn = makeTurn({
+      boardAfter: {
+        player1: makePlayerState('Alice#1234', 'OP01-001', {
+          don: { total: 10, active: 0, rested: 0, attachedToLeader: 1, totalAttached: 3 },
+        }),
+        player2: makePlayerState('Bob#5678', 'OP01-002'),
+      },
+    });
+    render(
+      <ReplayBoard
+        turn={turn}
+        currentTurnIndex={0}
+        totalTurns={1}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByText(/3 attached/).length).toBeGreaterThan(0);
+  });
+
+  it('DonRow shows none attached when totalAttached is 0 and active is 0', () => {
+    const turn = makeTurn();
+    render(
+      <ReplayBoard
+        turn={turn}
+        currentTurnIndex={0}
+        totalTurns={1}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByText(/none attached/).length).toBeGreaterThan(0);
+  });
+
+  it('DonBadge renders on a character with donAttached > 0', () => {
+    const turn = makeTurn({
+      boardAfter: {
+        player1: makePlayerState('Alice#1234', 'OP01-001', {
+          characters: [{ id: 'OP01-016', name: 'Nami', active: true, donAttached: 2 }],
+        }),
+        player2: makePlayerState('Bob#5678', 'OP01-002'),
+      },
+    });
+    render(
+      <ReplayBoard
+        turn={turn}
+        currentTurnIndex={0}
+        totalTurns={1}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('+2')).toBeTruthy();
+  });
+
+  it('CardEnlargePopup renders with power and effect when hovered', () => {
+    const turn = makeTurn({
+      boardAfter: {
+        player1: makePlayerState('Alice#1234', 'OP01-001', {
+          characters: [
+            {
+              id: 'OP01-016',
+              name: 'Nami',
+              active: true,
+              donAttached: 0,
+              power: 2000,
+              effect: 'Test effect text',
+              type: 'Character',
+              cost: 1,
+            },
+          ],
+        }),
+        player2: makePlayerState('Bob#5678', 'OP01-002'),
+      },
+    });
+    render(
+      <ReplayBoard
+        turn={turn}
+        currentTurnIndex={0}
+        totalTurns={1}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+      />,
+    );
+    const charCard = screen.getByTitle('Nami');
+    fireEvent.mouseEnter(charCard);
+    expect(screen.getByTestId('card-enlarge-popup')).toBeTruthy();
+    expect(screen.getByText('Test effect text')).toBeTruthy();
+  });
+
+  it('hover on character card shows the popup', () => {
+    const turn = makeTurn({
+      boardAfter: {
+        player1: makePlayerState('Alice#1234', 'OP01-001', {
+          characters: [{ id: 'OP01-016', name: 'Nami', active: true, donAttached: 0 }],
+        }),
+        player2: makePlayerState('Bob#5678', 'OP01-002'),
+      },
+    });
+    render(
+      <ReplayBoard
+        turn={turn}
+        currentTurnIndex={0}
+        totalTurns={1}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+      />,
+    );
+    const charCard = screen.getByTitle('Nami');
+    fireEvent.mouseEnter(charCard);
+    expect(screen.getByTestId('card-enlarge-popup')).toBeTruthy();
   });
 });
