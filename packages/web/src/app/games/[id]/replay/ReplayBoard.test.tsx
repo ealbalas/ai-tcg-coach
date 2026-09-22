@@ -168,39 +168,33 @@ describe('ReplayBoard', () => {
     expect(screen.getByText('Attacked with Nami')).toBeTruthy();
   });
 
-  it('DonRow shows N attached when totalAttached > 0', () => {
-    const turn = makeTurn({
-      boardAfter: {
-        player1: makePlayerState('Alice#1234', 'OP01-001', {
-          don: { total: 10, active: 0, rested: 0, attachedToLeader: 1, totalAttached: 3 },
-        }),
-        player2: makePlayerState('Bob#5678', 'OP01-002'),
-      },
-    });
+  it('shows DON meter with correct pip count based on turn number', () => {
     render(
       <ReplayBoard
-        turn={turn}
-        currentTurnIndex={0}
-        totalTurns={1}
+        turn={makeTurn({ turn: 4 })}
+        currentTurnIndex={3}
+        totalTurns={10}
         onPrev={vi.fn()}
         onNext={vi.fn()}
       />,
     );
-    expect(screen.getAllByText(/3 attached/).length).toBeGreaterThan(0);
+    const meter = screen.getByTestId('don-meter');
+    expect(meter).toBeTruthy();
+    expect(meter.textContent).toContain('4');
   });
 
-  it('DonRow shows none attached when totalAttached is 0 and active is 0', () => {
-    const turn = makeTurn();
+  it('DON meter caps at 10 for turns beyond 10', () => {
     render(
       <ReplayBoard
-        turn={turn}
-        currentTurnIndex={0}
-        totalTurns={1}
+        turn={makeTurn({ turn: 15 })}
+        currentTurnIndex={14}
+        totalTurns={20}
         onPrev={vi.fn()}
         onNext={vi.fn()}
       />,
     );
-    expect(screen.getAllByText(/none attached/).length).toBeGreaterThan(0);
+    const meter = screen.getByTestId('don-meter');
+    expect(meter.textContent).toContain('10');
   });
 
   it('DonBadge renders on a character with donAttached > 0', () => {

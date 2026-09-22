@@ -46,6 +46,7 @@ function createInitialPlayerState(username, leaderId) {
       cost: leaderDetails?.cost ?? null,
     },
     characters: [],
+    stage: [],
     hand: [],
     handCount: 0,
     don: { total: STANDARD_DON, active: STANDARD_DON, rested: 0, attachedToLeader: 0, totalAttached: 0 },
@@ -155,7 +156,7 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
     const snap = snapBuf[playerNum];
     const orig = pState[playerNum];
     const life = snap.life ?? orig.life;
-    const characters = (snap.board ?? []).map((id) => {
+    const allBoardCards = (snap.board ?? []).map((id) => {
       const details = getCardDetails(id);
       return {
         id,
@@ -168,6 +169,8 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
         cost: details?.cost ?? null,
       };
     });
+    const stage = allBoardCards.filter((c) => c.type === 'Stage');
+    const characters = allBoardCards.filter((c) => c.type !== 'Stage');
     const hand = (snap.hand ?? []).map((id) => {
       const details = getCardDetails(id);
       return {
@@ -186,6 +189,7 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
     return {
       ...orig,
       characters,
+      stage,
       hand,
       handCount: hand.length,
       trash,
