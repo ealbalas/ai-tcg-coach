@@ -149,21 +149,27 @@ function CardPreviewPanel({ card }: { card: HoverCardInfo | null }) {
   );
 }
 
-// DON pip meter - shows how many DON the active player gets this turn (equals turn number, cap 10)
-function DonMeter({ turnNum }: { turnNum: number }) {
-  const don = Math.min(turnNum, 10);
+function PlayerDon({ don }: { don: PlayerState['don'] }) {
+  const { total, active, rested } = don;
   return (
-    <div className="flex items-center gap-2" data-testid="don-meter">
-      <span className="text-xs text-gray-400">DON</span>
+    <div className="flex items-center gap-1.5" data-testid="player-don">
+      <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">DON!!</span>
       <div className="flex gap-0.5">
-        {Array.from({ length: 10 }).map((_, i) => (
-          <div
-            key={i}
-            className={`w-2.5 h-2.5 rounded-sm ${i < don ? 'bg-yellow-400' : 'bg-gray-700'}`}
-          />
-        ))}
+        {Array.from({ length: 10 }).map((_, i) => {
+          let cls: string;
+          if (i < rested) {
+            cls = 'bg-gray-500';
+          } else if (i < rested + active) {
+            cls = 'bg-yellow-400';
+          } else if (i < total) {
+            cls = 'bg-yellow-800 opacity-60';
+          } else {
+            cls = 'bg-gray-700';
+          }
+          return <div key={i} className={`w-2 h-2 rounded-sm ${cls}`} />;
+        })}
       </div>
-      <span className="text-xs font-bold text-yellow-400">{don}</span>
+      <span className="text-[10px] font-bold text-yellow-400">{active}/{total}</span>
     </div>
   );
 }
@@ -362,11 +368,14 @@ function PlayerHalf({
       <div className="flex items-center gap-6">
         <LeaderZone leader={state.leader} side={side} onHover={onHover} onLeave={onLeave} />
         <LifeStack count={state.life} side={side} />
-        <div className="flex flex-col">
-          <span className={`text-sm font-bold ${labelClass}`}>{state.username}</span>
-          <span className="text-xs text-gray-500">
-            {isBottom ? 'You (Player 1)' : 'Opponent (Player 2)'}
-          </span>
+        <div className="flex flex-col gap-1.5">
+          <div>
+            <span className={`text-sm font-bold ${labelClass}`}>{state.username}</span>
+            <span className="text-xs text-gray-500 block">
+              {isBottom ? 'You (Player 1)' : 'Opponent (Player 2)'}
+            </span>
+          </div>
+          <PlayerDon don={state.don} />
         </div>
       </div>
     </div>
@@ -421,7 +430,6 @@ export function ReplayBoard({
             Turn {turn.turn} of {totalTurns}
           </p>
           <p className="text-xs text-gray-400">Player {activePlayer}&apos;s turn</p>
-          <DonMeter turnNum={turn.turn} />
         </div>
         <button
           onClick={onNext}

@@ -61,7 +61,7 @@ CHK line: `RZ1|CHK|<seq>|<player>|<f0..f9>`
 - All other numeric fields: unknown, stored raw
 
 **Scope:** `parser.js` covers only the RZ1 pipe-delimited setup phase.
-Confirmed in-game gameplay line formats (Deploy, Attack, DON!! Attach, End Turn, Destroyed, and end-of-turn Hand/Board/Trash/Life snapshots) are documented in `packages/api/src/replay.js` as regex patterns with inline comments.
+Confirmed in-game gameplay line formats (Deploy, Attack, DON!! Attach, DON!! Draw, card-effect DON!! Activate/Rest, End Turn, Destroyed, and end-of-turn Hand/Board/Trash/Life snapshots) are documented in `packages/api/src/replay.js` as regex patterns with inline comments.
 
 ## Card data cache
 
@@ -99,13 +99,15 @@ Implementation: `packages/api/src/replay.js` (builder), `packages/api/src/routes
 API endpoint: `GET /api/games/:id/replay` - reads the raw log from disk and returns a `ReplayResponse` (TypeScript types in `packages/web/src/lib/api.ts`).
 
 **Two parsing modes (auto-detected by presence of `[Player] End Turn` lines):**
-- **Gameplay mode**: uses confirmed OPTCGSim gameplay event lines (Deploy, Attack, DON!! Attach, Destroyed, End Turn) plus authoritative end-of-turn state snapshots (`[Player] Hand/Board/Trash/Life`).
-  The snapshot lines are authoritative for characters, hand, trash, and life; event lines track rested state and per-card DON!! counts between snapshots.
+- **Gameplay mode**: uses confirmed OPTCGSim gameplay event lines (Deploy, Attack, DON!! Attach, DON!! Draw, card-effect DON!! Activate/Rest, Destroyed, End Turn) plus authoritative end-of-turn state snapshots (`[Player] Hand/Board/Trash/Life`).
+  The snapshot lines are authoritative for characters, hand, trash, and life; event lines track rested state, per-card DON!! counts, and per-player DON pool state (drawn/active/rested) between snapshots.
 - **Setup mode**: when no End Turn lines exist (RZ1-only logs), turns come from `parser.js` player-change groups with empty characters/hand.
 
 **State management sharp edges:**
-- `restedCards` and `donByCardId` are keyed `{ 1: ..., 2: ... }` to avoid cross-player contamination when both players field the same card ID.
-- `pendingEndTurn` captures a snapshot of `actions`, `restedCards`, and `donByCardId` when End Turn arrives before all 8 snapshot lines.
+- `restedCards`, `donByCardId`, and `donPoolByPlayer` are keyed `{ 1: ..., 2: ... }` to avoid cross-player contamination when both players field the same card ID.
+- `donPoolByPlayer` tracks each player's cumulative drawn DON and current active/rested split; initialized to zero and built entirely from log events (no assumed starting value).
+- When a character with attached DON!! is destroyed, its DON!! is restored to the owner's rested pool before the `donByCardId` entry is deleted (OPTCG rule: attached DON returns rested on KO).
+- `pendingEndTurn` captures a snapshot of `actions`, `restedCards`, `donByCardId`, and `donPoolByPlayer` when End Turn arrives before all 8 snapshot lines.
   The flush happens on the line that completes the snapshots, then the outer variables are restored for the next turn.
 
 ## LLM coaching pipeline
