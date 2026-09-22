@@ -312,3 +312,191 @@ describe('buildReplay - winner detection', () => {
     assert.strictEqual(replay.winner, 'Alice#1234');
   });
 });
+
+describe('buildReplay - stage zone population', () => {
+  // EB01-011 is "Mini-Merry" with type "STAGE" (uppercase) in cards.json
+  it('places a STAGE-type card in stage, not characters', () => {
+    const log = BASE_HEADER
+      + '[Alice#1234] Hand: []\n'
+      + '[Alice#1234] Board: [EB01-011]\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 5\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: []\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n'
+      + '[Alice#1234] End Turn\n';
+    const replay = buildReplay(log);
+    const p1After = replay.turns[0].boardAfter.player1;
+    assert.ok(
+      p1After.stage.some((c) => c.id === 'EB01-011'),
+      `Expected EB01-011 in stage: ${JSON.stringify(p1After.stage)}`,
+    );
+    assert.ok(
+      !p1After.characters.some((c) => c.id === 'EB01-011'),
+      `EB01-011 must NOT appear in characters: ${JSON.stringify(p1After.characters)}`,
+    );
+  });
+
+  it('keeps non-stage cards out of the stage array', () => {
+    const log = BASE_HEADER
+      + '[Alice#1234] Hand: []\n'
+      + '[Alice#1234] Board: [OP01-016]\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 5\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: []\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n'
+      + '[Alice#1234] End Turn\n';
+    const replay = buildReplay(log);
+    const p1After = replay.turns[0].boardAfter.player1;
+    assert.strictEqual(p1After.stage.length, 0, 'Character card must not appear in stage');
+    assert.ok(
+      p1After.characters.some((c) => c.id === 'OP01-016'),
+      'Character card must appear in characters',
+    );
+  });
+});
+
+describe('buildReplay - DON!! per-player pool tracking', () => {
+  it('starts with zero DON for both players', () => {
+    const log = BASE_HEADER
+      + '[Alice#1234] Hand: []\n'
+      + '[Alice#1234] Board: []\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 5\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: []\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n'
+      + '[Alice#1234] End Turn\n';
+    const replay = buildReplay(log);
+    const p1Don = replay.turns[0].boardAfter.player1.don;
+    const p2Don = replay.turns[0].boardAfter.player2.don;
+    assert.strictEqual(p1Don.total, 0);
+    assert.strictEqual(p2Don.total, 0);
+  });
+
+  it('tracks drawn DON per player independently', () => {
+    const log = BASE_HEADER
+      + '[Alice#1234] Draw 1 Don\n'
+      + '[Alice#1234] Hand: []\n'
+      + '[Alice#1234] Board: []\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 5\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: []\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n'
+      + '[Alice#1234] End Turn\n'
+      + '[Bob#5678] Draw 2 Don\n'
+      + '[Alice#1234] Hand: []\n'
+      + '[Alice#1234] Board: []\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 5\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: []\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n'
+      + '[Bob#5678] End Turn\n';
+    const replay = buildReplay(log);
+    // After Turn 1 (Alice): Alice drew 1, Bob drew 0
+    const t1p1 = replay.turns[0].boardAfter.player1.don;
+    const t1p2 = replay.turns[0].boardAfter.player2.don;
+    assert.strictEqual(t1p1.total, 1, 'Alice drew 1 DON in turn 1');
+    assert.strictEqual(t1p2.total, 0, 'Bob drew nothing in turn 1');
+    // After Turn 2 (Bob): Alice has 1, Bob drew 2 (total 2)
+    const t2p1 = replay.turns[1].boardAfter.player1.don;
+    const t2p2 = replay.turns[1].boardAfter.player2.don;
+    assert.strictEqual(t2p1.total, 1, 'Alice still has 1 drawn after turn 2');
+    assert.strictEqual(t2p2.total, 2, 'Bob drew 2 DON in turn 2');
+  });
+
+  it('decrements active DON when DON is attached to a card', () => {
+    const log = BASE_HEADER
+      + '[Alice#1234] Draw 2 Don\n'
+      + '[Alice#1234] Deploy Nami ["OP01-016">OP01-016]\n'
+      + '[Alice#1234] Attach 2 Don to Nami ["OP01-016">OP01-016] (2 Total)\n'
+      + '[Alice#1234] Hand: []\n'
+      + '[Alice#1234] Board: [OP01-016]\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 5\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: []\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n'
+      + '[Alice#1234] End Turn\n';
+    const replay = buildReplay(log);
+    const don = replay.turns[0].boardAfter.player1.don;
+    assert.strictEqual(don.total, 2, 'Alice drew 2 DON');
+    assert.strictEqual(don.active, 0, 'All active DON were attached');
+    assert.strictEqual(don.totalAttached, 2, '2 DON attached total');
+  });
+
+  it('refreshes rested DON at start of next turn when Draw N Don fires', () => {
+    // Alice rests 2 DON via card effect, then End Turn; next turn Draw should refresh them
+    const log = BASE_HEADER
+      + '[Alice#1234] Draw 3 Don\n'
+      + '[Alice#1234] Gravity Blade Raging Tiger ["OP06-058">OP06-058]: Rest 2 Don\n'
+      + '[Alice#1234] Hand: []\n'
+      + '[Alice#1234] Board: []\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 5\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: []\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n'
+      + '[Alice#1234] End Turn\n'
+      + '[Bob#5678] Draw 2 Don\n'
+      + '[Alice#1234] Hand: []\n'
+      + '[Alice#1234] Board: []\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 5\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: []\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n'
+      + '[Bob#5678] End Turn\n'
+      + '[Alice#1234] Draw 2 Don\n'
+      + '[Alice#1234] Hand: []\n'
+      + '[Alice#1234] Board: []\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 5\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: []\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n'
+      + '[Alice#1234] End Turn\n';
+    const replay = buildReplay(log);
+    // After Turn 1: Alice drew 3, rested 2 -> total=3, active=1, rested=2
+    const t1don = replay.turns[0].boardAfter.player1.don;
+    assert.strictEqual(t1don.total, 3);
+    assert.strictEqual(t1don.active, 1);
+    assert.strictEqual(t1don.rested, 2);
+    // After Turn 3 (Alice turn 2): refreshed 2 rested, drew 2 more -> total=5, active=5, rested=0
+    const t3don = replay.turns[2].boardAfter.player1.don;
+    assert.strictEqual(t3don.total, 5);
+    assert.strictEqual(t3don.active, 5, 'Rested DON refreshed + 2 new drawn');
+    assert.strictEqual(t3don.rested, 0);
+  });
+
+  it('DON pool does not bleed between players', () => {
+    const log = BASE_HEADER
+      + '[Alice#1234] Draw 3 Don\n'
+      + '[Alice#1234] Hand: []\n'
+      + '[Alice#1234] Board: []\n'
+      + '[Alice#1234] Trash: []\n'
+      + '[Alice#1234] Life: 5\n'
+      + '[Bob#5678] Hand: []\n'
+      + '[Bob#5678] Board: []\n'
+      + '[Bob#5678] Trash: []\n'
+      + '[Bob#5678] Life: 5\n'
+      + '[Alice#1234] End Turn\n';
+    const replay = buildReplay(log);
+    const p1Don = replay.turns[0].boardAfter.player1.don;
+    const p2Don = replay.turns[0].boardAfter.player2.don;
+    assert.strictEqual(p1Don.total, 3, "Alice's draw must not affect Bob");
+    assert.strictEqual(p2Don.total, 0, "Bob's DON must remain 0");
+  });
+});

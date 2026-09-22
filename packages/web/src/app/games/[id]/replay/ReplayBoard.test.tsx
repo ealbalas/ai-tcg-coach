@@ -168,33 +168,43 @@ describe('ReplayBoard', () => {
     expect(screen.getByText('Attacked with Nami')).toBeTruthy();
   });
 
-  it('shows DON meter with correct pip count based on turn number', () => {
+  it('renders a per-player DON display for each player half', () => {
     render(
       <ReplayBoard
-        turn={makeTurn({ turn: 4 })}
-        currentTurnIndex={3}
-        totalTurns={10}
+        turn={makeTurn()}
+        currentTurnIndex={0}
+        totalTurns={3}
         onPrev={vi.fn()}
         onNext={vi.fn()}
       />,
     );
-    const meter = screen.getByTestId('don-meter');
-    expect(meter).toBeTruthy();
-    expect(meter.textContent).toContain('4');
+    const donDisplays = screen.getAllByTestId('player-don');
+    expect(donDisplays.length).toBe(2);
   });
 
-  it('DON meter caps at 10 for turns beyond 10', () => {
+  it('shows correct active/total DON for each player', () => {
+    const turn = makeTurn({
+      boardAfter: {
+        player1: makePlayerState('Alice#1234', 'OP01-001', {
+          don: { total: 3, active: 2, rested: 1, attachedToLeader: 0, totalAttached: 0 },
+        }),
+        player2: makePlayerState('Bob#5678', 'OP01-002', {
+          don: { total: 5, active: 4, rested: 0, attachedToLeader: 1, totalAttached: 1 },
+        }),
+      },
+    });
     render(
       <ReplayBoard
-        turn={makeTurn({ turn: 15 })}
-        currentTurnIndex={14}
-        totalTurns={20}
+        turn={turn}
+        currentTurnIndex={0}
+        totalTurns={1}
         onPrev={vi.fn()}
         onNext={vi.fn()}
       />,
     );
-    const meter = screen.getByTestId('don-meter');
-    expect(meter.textContent).toContain('10');
+    const [p2Don, p1Don] = screen.getAllByTestId('player-don');
+    expect(p1Don.textContent).toContain('2/3');
+    expect(p2Don.textContent).toContain('4/5');
   });
 
   it('DonBadge renders on a character with donAttached > 0', () => {

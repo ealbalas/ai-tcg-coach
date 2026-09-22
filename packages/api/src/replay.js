@@ -14,7 +14,6 @@ import { parseLog } from './parser.js';
 import { getCardName, getCardDetails } from './cards.js';
 
 const STANDARD_LIFE = 5;
-const STANDARD_DON = 10;
 
 // Confirmed OPTCGSim gameplay line patterns (from real match logs)
 const DEPLOY_RE = /^\[(.+?)\] Deploy (.+?) \["(.+?)">(.+?)\]$/;
@@ -23,6 +22,10 @@ const DISCARD_COUNTER_RE = /^\[(.+?)\] Discard (.+?) \["(.+?)">(.+?)\] for Count
 const DON_ATTACH_RE = /^\[(.+?)\] Attach (\d+) Don to (.+?) \["(.+?)">(.+?)\] \((\d+) Total\)$/;
 const END_TURN_RE = /^\[(.+?)\] End Turn$/;
 const DESTROYED_RE = /^\[(.+?)\] (.+?) \["(.+?)">(.+?)\] Destroyed$/;
+// DON!! pool events
+const DON_DRAW_RE = /^\[(.+?)\] Draw (\d+) Don$/;
+const DON_ACTIVATE_RE = /^\[(.+?)\] .+: Activate (\d+) Don$/;
+const DON_REST_EFFECT_RE = /^\[(.+?)\] .+: Rest (\d+) Don$/;
 
 // Authoritative end-of-turn state snapshots (appear before or after End Turn)
 const HAND_SNAP_RE = /^\[(.+?)\] Hand: \[([^\]]*)\]$/;
@@ -49,7 +52,7 @@ function createInitialPlayerState(username, leaderId) {
     stage: [],
     hand: [],
     handCount: 0,
-    don: { total: STANDARD_DON, active: STANDARD_DON, rested: 0, attachedToLeader: 0, totalAttached: 0 },
+    don: { total: 0, active: 0, rested: 0, attachedToLeader: 0, totalAttached: 0 },
     trash: [],
     life: STANDARD_LIFE,
   };
@@ -149,6 +152,11 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
   let donByCardId = { 1: {}, 2: {} };
   // Cards that attacked this turn per player; reset per turn
   let restedCards = { 1: new Set(), 2: new Set() };
+  // Per-player DON pool: drawn from deck (total), and current active/rested in the pool
+  let donPoolByPlayer = {
+    1: { drawn: 0, active: 0, rested: 0 },
+    2: { drawn: 0, active: 0, rested: 0 },
+  };
 
   const snapBuf = { 1: emptySnap(), 2: emptySnap() };
 
@@ -169,8 +177,8 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
         cost: details?.cost ?? null,
       };
     });
-    const stage = allBoardCards.filter((c) => c.type === 'Stage');
-    const characters = allBoardCards.filter((c) => c.type !== 'Stage');
+    const stage = allBoardCards.filter((c) => c.type?.toLowerCase() === 'stage');
+    const characters = allBoardCards.filter((c) => c.type?.toLowerCase() !== 'stage');
     const hand = (snap.hand ?? []).map((id) => {
       const details = getCardDetails(id);
       return {
@@ -186,6 +194,7 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
     const attachedToLeader = donByCardId[playerNum][orig.leader.id] ?? 0;
     const attachedToChars = characters.reduce((sum, c) => sum + c.donAttached, 0);
     const leaderDetails = getCardDetails(orig.leader.id);
+    const pool = donPoolByPlayer[playerNum];
     return {
       ...orig,
       characters,
@@ -204,11 +213,11 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
         cost: leaderDetails?.cost ?? null,
       },
       don: {
-        ...orig.don,
+        total: pool.drawn,
+        active: pool.active,
+        rested: pool.rested,
         attachedToLeader,
         totalAttached: attachedToLeader + attachedToChars,
-        active: 0,
-        rested: 0,
       },
     };
   }
@@ -254,6 +263,10 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
           actions: [...currentActions],
           restedCards: { 1: new Set(restedCards[1]), 2: new Set(restedCards[2]) },
           donByCardId: { 1: { ...donByCardId[1] }, 2: { ...donByCardId[2] } },
+          donPoolByPlayer: {
+            1: { ...donPoolByPlayer[1] },
+            2: { ...donPoolByPlayer[2] },
+          },
         };
         currentActions = [];
         restedCards = { 1: new Set(), 2: new Set() };
@@ -269,7 +282,10 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
       currentActions.push(`${m[2]} attacking ${m[5]}`);
     } else if ((m = DON_ATTACH_RE.exec(line))) {
       const dp = nameToPlayer[m[1]];
-      if (dp) donByCardId[dp][m[5]] = parseInt(m[6], 10);
+      if (dp) {
+        donByCardId[dp][m[5]] = parseInt(m[6], 10);
+        donPoolByPlayer[dp].active = Math.max(0, donPoolByPlayer[dp].active - parseInt(m[2], 10));
+      }
       currentActions.push(`Attach ${m[2]} DON!! to ${m[3]} (${m[6]} Total)`);
     } else if ((m = DISCARD_COUNTER_RE.exec(line))) {
       currentActions.push(`Discarded ${m[2]} for counter`);
@@ -277,17 +293,45 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
       const xp = nameToPlayer[m[1]];
       if (xp) delete donByCardId[xp][m[4]];
       currentActions.push(`${m[2]} Destroyed`);
+    } else if ((m = DON_DRAW_RE.exec(line))) {
+      const dp = nameToPlayer[m[1]];
+      if (dp) {
+        // Refresh: rested DON becomes active at turn start before drawing
+        donPoolByPlayer[dp].active += donPoolByPlayer[dp].rested;
+        donPoolByPlayer[dp].rested = 0;
+        const n = parseInt(m[2], 10);
+        donPoolByPlayer[dp].drawn += n;
+        donPoolByPlayer[dp].active += n;
+      }
+    } else if ((m = DON_ACTIVATE_RE.exec(line))) {
+      const dp = nameToPlayer[m[1]];
+      if (dp) {
+        const n = parseInt(m[2], 10);
+        const moved = Math.min(n, donPoolByPlayer[dp].rested);
+        donPoolByPlayer[dp].rested -= moved;
+        donPoolByPlayer[dp].active += moved;
+      }
+    } else if ((m = DON_REST_EFFECT_RE.exec(line))) {
+      const dp = nameToPlayer[m[1]];
+      if (dp) {
+        const n = parseInt(m[2], 10);
+        const moved = Math.min(n, donPoolByPlayer[dp].active);
+        donPoolByPlayer[dp].active -= moved;
+        donPoolByPlayer[dp].rested += moved;
+      }
     }
 
     if (pendingEndTurn !== null && snapComplete(snapBuf)) {
       const nextActions = currentActions;
       const nextRested = restedCards;
       const nextDon = donByCardId;
-      ({ actions: currentActions, restedCards, donByCardId } = pendingEndTurn);
+      const nextDonPool = donPoolByPlayer;
+      ({ actions: currentActions, restedCards, donByCardId, donPoolByPlayer } = pendingEndTurn);
       finalizeTurn(pendingEndTurn.turnNum, pendingEndTurn.activePlayer);
       currentActions = nextActions;
       restedCards = nextRested;
       donByCardId = nextDon;
+      donPoolByPlayer = nextDonPool;
       pendingEndTurn = null;
     }
   }
