@@ -312,7 +312,7 @@ function HandRow({
   onLeave,
 }: {
   hand: PlayerState['hand'];
-  newCardIds?: Set<string>;
+  newCardIds?: Set<number>;
   onHover?: (card: HoverCardInfo) => void;
   onLeave?: () => void;
 }) {
@@ -336,7 +336,7 @@ function HandRow({
           type={h.type}
           cost={h.cost}
           attribute={h.attribute}
-          isNew={newCardIds?.has(h.id)}
+          isNew={newCardIds?.has(i)}
           onHover={onHover}
           onLeave={onLeave}
         />
@@ -354,7 +354,7 @@ function PlayerHalf({
 }: {
   state: PlayerState;
   side: 'top' | 'bottom';
-  newCardIds?: Set<string>;
+  newCardIds?: Set<number>;
   onHover?: (card: HoverCardInfo) => void;
   onLeave?: () => void;
 }) {
@@ -407,9 +407,22 @@ export interface ReplayBoardProps {
 function computeNewCardIds(
   currentHand: PlayerState['hand'],
   previousHand: PlayerState['hand'],
-): Set<string> {
-  const prevIds = new Set(previousHand.map((c) => c.id));
-  return new Set(currentHand.filter((c) => !prevIds.has(c.id)).map((c) => c.id));
+): Set<number> {
+  const prevCounts = new Map<string, number>();
+  for (const c of previousHand) {
+    prevCounts.set(c.id, (prevCounts.get(c.id) ?? 0) + 1);
+  }
+  const seenCounts = new Map<string, number>();
+  const newIndices = new Set<number>();
+  for (let i = 0; i < currentHand.length; i++) {
+    const id = currentHand[i].id;
+    const seen = (seenCounts.get(id) ?? 0) + 1;
+    seenCounts.set(id, seen);
+    if (seen > (prevCounts.get(id) ?? 0)) {
+      newIndices.add(i);
+    }
+  }
+  return newIndices;
 }
 
 export function ReplayBoard({
@@ -438,10 +451,10 @@ export function ReplayBoard({
 
   const newP1CardIds = previousTurn
     ? computeNewCardIds(boardAfter.player1.hand, previousTurn.boardAfter.player1.hand)
-    : new Set<string>();
+    : new Set<number>();
   const newP2CardIds = previousTurn
     ? computeNewCardIds(boardAfter.player2.hand, previousTurn.boardAfter.player2.hand)
-    : new Set<string>();
+    : new Set<number>();
 
   return (
     <div className="flex flex-col gap-4">
