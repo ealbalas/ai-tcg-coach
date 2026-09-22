@@ -27,6 +27,7 @@ type HoverCardInfo = {
   type?: string | null;
   cost?: number | null;
   donAttached?: number;
+  attribute?: string | null;
 };
 
 function EmptySlot({ size = 'sm' }: { size?: 'sm' | 'md' }) {
@@ -51,6 +52,8 @@ function CardImage({
   effect,
   type,
   cost,
+  attribute,
+  isNew,
   onHover,
   onLeave,
   'data-testid': testId,
@@ -65,6 +68,8 @@ function CardImage({
   effect?: string | null;
   type?: string | null;
   cost?: number | null;
+  attribute?: string | null;
+  isNew?: boolean;
   onHover?: (card: HoverCardInfo) => void;
   onLeave?: () => void;
   'data-testid'?: string;
@@ -72,10 +77,11 @@ function CardImage({
   const url = !faceDown ? cardImageUrl(id) : null;
   const sizeClass = size === 'md' ? 'w-24 h-36' : 'w-20 h-28';
   const restClass = active === false ? 'rotate-90' : '';
+  const isCounter = attribute ? /counter/i.test(attribute) : false;
 
   const handleMouseEnter = () => {
     if (onHover && id) {
-      onHover({ id, name, power, effect, type, cost, donAttached });
+      onHover({ id, name, power, effect, type, cost, donAttached, attribute });
     }
   };
   const handleMouseLeave = () => {
@@ -84,7 +90,7 @@ function CardImage({
 
   return (
     <div
-      className={`relative flex-shrink-0 ${sizeClass} rounded overflow-hidden transition-transform duration-150 ${restClass}`}
+      className={`relative flex-shrink-0 ${sizeClass} rounded overflow-hidden transition-transform duration-150 ${restClass}${isNew ? ' ring-2 ring-offset-1 ring-yellow-300 animate-pulse' : ''}`}
       title={name ?? id ?? ''}
       data-testid={testId}
       onMouseEnter={handleMouseEnter}
@@ -101,6 +107,11 @@ function CardImage({
         </div>
       )}
       <DonBadge count={donAttached} />
+      {isCounter && (
+        <span className="absolute bottom-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold bg-amber-900/80 text-amber-300 leading-none z-10">
+          CTR
+        </span>
+      )}
     </div>
   );
 }
@@ -136,6 +147,9 @@ function CardPreviewPanel({ card }: { card: HoverCardInfo | null }) {
             )}
             {(card.donAttached ?? 0) > 0 && (
               <span className="text-yellow-400">+{card.donAttached} DON!!</span>
+            )}
+            {card.attribute && (
+              <span className="px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300">{card.attribute}</span>
             )}
           </div>
           {card.effect && (
@@ -238,6 +252,7 @@ function StageZone({
           effect={stageCard.effect}
           type={stageCard.type}
           cost={stageCard.cost}
+          attribute={stageCard.attribute}
           onHover={onHover}
           onLeave={onLeave}
         />
@@ -276,6 +291,7 @@ function CharacterRow({
                 effect={card.effect}
                 type={card.type}
                 cost={card.cost}
+                attribute={card.attribute}
                 onHover={onHover}
                 onLeave={onLeave}
               />
@@ -291,10 +307,12 @@ function CharacterRow({
 
 function HandRow({
   hand,
+  newCardIds,
   onHover,
   onLeave,
 }: {
   hand: PlayerState['hand'];
+  newCardIds?: Set<string>;
   onHover?: (card: HoverCardInfo) => void;
   onLeave?: () => void;
 }) {
@@ -317,6 +335,8 @@ function HandRow({
           effect={h.effect}
           type={h.type}
           cost={h.cost}
+          attribute={h.attribute}
+          isNew={newCardIds?.has(h.id)}
           onHover={onHover}
           onLeave={onLeave}
         />
@@ -328,11 +348,13 @@ function HandRow({
 function PlayerHalf({
   state,
   side,
+  newCardIds,
   onHover,
   onLeave,
 }: {
   state: PlayerState;
   side: 'top' | 'bottom';
+  newCardIds?: Set<string>;
   onHover?: (card: HoverCardInfo) => void;
   onLeave?: () => void;
 }) {
@@ -346,7 +368,7 @@ function PlayerHalf({
         <span className={`text-xs font-semibold ${labelClass} mb-1 block`}>
           {state.username} - Hand ({state.hand.length})
         </span>
-        <HandRow hand={state.hand} onHover={onHover} onLeave={onLeave} />
+        <HandRow hand={state.hand} newCardIds={newCardIds} onHover={onHover} onLeave={onLeave} />
       </div>
 
       {/* Stage + Character zone */}
@@ -375,14 +397,24 @@ function PlayerHalf({
 
 export interface ReplayBoardProps {
   turn: TurnState;
+  previousTurn?: TurnState | null;
   currentTurnIndex: number;
   totalTurns: number;
   onPrev: () => void;
   onNext: () => void;
 }
 
+function computeNewCardIds(
+  currentHand: PlayerState['hand'],
+  previousHand: PlayerState['hand'],
+): Set<string> {
+  const prevIds = new Set(previousHand.map((c) => c.id));
+  return new Set(currentHand.filter((c) => !prevIds.has(c.id)).map((c) => c.id));
+}
+
 export function ReplayBoard({
   turn,
+  previousTurn,
   currentTurnIndex,
   totalTurns,
   onPrev,
@@ -403,6 +435,13 @@ export function ReplayBoard({
 
   const handleNextAction = () =>
     setCurrentActionIndex((i) => Math.min(actions.length - 1, i + 1));
+
+  const newP1CardIds = previousTurn
+    ? computeNewCardIds(boardAfter.player1.hand, previousTurn.boardAfter.player1.hand)
+    : new Set<string>();
+  const newP2CardIds = previousTurn
+    ? computeNewCardIds(boardAfter.player2.hand, previousTurn.boardAfter.player2.hand)
+    : new Set<string>();
 
   return (
     <div className="flex flex-col gap-4">
@@ -441,6 +480,7 @@ export function ReplayBoard({
             <PlayerHalf
               state={boardAfter.player2}
               side="top"
+              newCardIds={newP2CardIds}
               onHover={setHoveredCard}
               onLeave={() => setHoveredCard(null)}
             />
@@ -450,6 +490,7 @@ export function ReplayBoard({
           <PlayerHalf
             state={boardAfter.player1}
             side="bottom"
+            newCardIds={newP1CardIds}
             onHover={setHoveredCard}
             onLeave={() => setHoveredCard(null)}
           />
@@ -497,31 +538,50 @@ export function ReplayBoard({
               )}
             </div>
 
-            {currentActionIndex >= 0 && actions[currentActionIndex] && (
-              <div className="mb-2 px-2 py-1.5 rounded-lg bg-blue-900/40 border border-blue-800/60">
-                <p className="text-xs text-blue-200 leading-snug">{actions[currentActionIndex]}</p>
-              </div>
-            )}
+            {currentActionIndex >= 0 && actions[currentActionIndex] && (() => {
+              const action = actions[currentActionIndex];
+              const isCounter = action.toLowerCase().includes('for counter');
+              return (
+                <div className={`mb-2 px-2 py-1.5 rounded-lg ${isCounter ? 'bg-amber-900/40 border border-amber-800/60' : 'bg-blue-900/40 border border-blue-800/60'}`}>
+                  <p className={`text-xs leading-snug flex items-center gap-1 ${isCounter ? 'text-amber-200' : 'text-blue-200'}`}>
+                    {isCounter && (
+                      <span className="flex-shrink-0 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-900/60 text-amber-300">CTR</span>
+                    )}
+                    {action}
+                  </p>
+                </div>
+              );
+            })()}
 
             {actions.length === 0 ? (
               <p className="text-xs text-gray-600 italic">No actions recorded.</p>
             ) : (
               <ul className="space-y-0.5 overflow-y-auto max-h-80">
-                {actions.map((a, i) => (
-                  <li
-                    key={i}
-                    className={`text-xs flex gap-1.5 px-2 py-1 rounded transition-colors ${
-                      i === currentActionIndex
-                        ? 'bg-blue-900/50 text-white'
-                        : i < currentActionIndex
-                        ? 'text-gray-600'
-                        : 'text-gray-400'
-                    }`}
-                  >
-                    <span className="flex-shrink-0 text-gray-600">{i + 1}.</span>
-                    <span>{a}</span>
-                  </li>
-                ))}
+                {actions.map((a, i) => {
+                  const isCounter = a.toLowerCase().includes('for counter');
+                  return (
+                    <li
+                      key={i}
+                      className={`text-xs flex gap-1.5 px-2 py-1 rounded transition-colors ${
+                        i === currentActionIndex
+                          ? isCounter
+                            ? 'bg-amber-900/50 text-amber-200'
+                            : 'bg-blue-900/50 text-white'
+                          : i < currentActionIndex
+                          ? 'text-gray-600'
+                          : isCounter
+                          ? 'text-amber-300'
+                          : 'text-gray-400'
+                      }`}
+                    >
+                      <span className="flex-shrink-0 text-gray-600">{i + 1}.</span>
+                      {isCounter && (
+                        <span className="flex-shrink-0 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-900/60 text-amber-300">CTR</span>
+                      )}
+                      <span>{a}</span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
