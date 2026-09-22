@@ -160,6 +160,7 @@ export interface PlayerState {
   username: string;
   leader: LeaderOnBoard;
   characters: CardOnBoard[];
+  stage?: CardOnBoard[];
   hand: HandCard[];
   handCount: number;
   don: { total: number; active: number; rested: number; attachedToLeader: number; totalAttached: number };

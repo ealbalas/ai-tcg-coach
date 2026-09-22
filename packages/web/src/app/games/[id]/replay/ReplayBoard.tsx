@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import type { PlayerState, CardOnBoard, LeaderOnBoard, HandCard, TurnState } from '@/lib/api';
+import { useState, useEffect } from 'react';
+import type { PlayerState, CardOnBoard, LeaderOnBoard, TurnState } from '@/lib/api';
 
 const CARD_BACK_BG = 'bg-gray-700 border border-gray-600';
 
@@ -28,6 +28,17 @@ type HoverCardInfo = {
   cost?: number | null;
   donAttached?: number;
 };
+
+function EmptySlot({ size = 'sm' }: { size?: 'sm' | 'md' }) {
+  const sizeClass = size === 'md' ? 'w-24 h-36' : 'w-20 h-28';
+  return (
+    <div
+      className={`${sizeClass} rounded border-2 border-dashed border-gray-700 bg-gray-800/20 flex items-center justify-center`}
+    >
+      <span className="text-gray-700 text-xs">-</span>
+    </div>
+  );
+}
 
 function CardImage({
   id,
@@ -94,49 +105,66 @@ function CardImage({
   );
 }
 
-function CardEnlargePopup({
-  card,
-  onClose,
-}: {
-  card: HoverCardInfo;
-  onClose: () => void;
-}) {
-  if (!card.id) return null;
+// Card preview panel shown inside the sidebar - no overlay so hover stays stable
+function CardPreviewPanel({ card }: { card: HoverCardInfo | null }) {
+  if (!card || !card.id) return null;
   const url = cardImageUrl(card.id);
   return (
-    <>
-      <div
-        className="fixed inset-0 z-40 bg-black/60"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div
-        data-testid="card-enlarge-popup"
-        className="fixed z-50 pointer-events-none"
-        style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 280, maxHeight: '90vh' }}
-      >
-        <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden flex flex-col gap-3 p-3">
-          <div className="rounded-lg overflow-hidden bg-gray-800" style={{ aspectRatio: '7/10', width: '100%' }}>
-            {url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={url} alt={card.name ?? card.id} className="w-full h-full object-cover" />
-            ) : null}
-          </div>
-          <p className="text-white font-bold text-sm">{card.name ?? card.id}</p>
-          <div className="flex items-center gap-2 text-xs text-gray-400 flex-wrap">
-            {card.type && <span className="px-1.5 py-0.5 rounded bg-gray-700">{card.type}</span>}
+    <div
+      data-testid="card-enlarge-popup"
+      className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden p-3 mb-3"
+    >
+      <div className="flex gap-3">
+        <div
+          className="rounded-lg overflow-hidden bg-gray-700 flex-shrink-0"
+          style={{ width: 64, aspectRatio: '7/10' }}
+        >
+          {url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={url} alt={card.name ?? card.id} className="w-full h-full object-cover" />
+          ) : null}
+        </div>
+        <div className="flex flex-col gap-1 min-w-0 flex-1">
+          <p className="text-white font-bold text-sm leading-tight">{card.name ?? card.id}</p>
+          <div className="flex flex-wrap gap-1 text-xs text-gray-400">
+            {card.type && (
+              <span className="px-1.5 py-0.5 rounded bg-gray-700">{card.type}</span>
+            )}
             {card.cost != null && <span>Cost {card.cost}</span>}
-            {card.power != null && <span>{Math.round(card.power / 1000)}k power</span>}
+            {card.power != null && (
+              <span>{Math.round(card.power / 1000)}k pwr</span>
+            )}
             {(card.donAttached ?? 0) > 0 && (
               <span className="text-yellow-400">+{card.donAttached} DON!!</span>
             )}
           </div>
           {card.effect && (
-            <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-line">{card.effect}</p>
+            <p className="text-xs text-gray-300 leading-relaxed line-clamp-5">
+              {card.effect}
+            </p>
           )}
         </div>
       </div>
-    </>
+    </div>
+  );
+}
+
+// DON pip meter - shows how many DON the active player gets this turn (equals turn number, cap 10)
+function DonMeter({ turnNum }: { turnNum: number }) {
+  const don = Math.min(turnNum, 10);
+  return (
+    <div className="flex items-center gap-2" data-testid="don-meter">
+      <span className="text-xs text-gray-400">DON</span>
+      <div className="flex gap-0.5">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <div
+            key={i}
+            className={`w-2.5 h-2.5 rounded-sm ${i < don ? 'bg-yellow-400' : 'bg-gray-700'}`}
+          />
+        ))}
+      </div>
+      <span className="text-xs font-bold text-yellow-400">{don}</span>
+    </div>
   );
 }
 
@@ -187,6 +215,40 @@ function LifeStack({ count, side }: { count: number; side: 'top' | 'bottom' }) {
   );
 }
 
+function StageZone({
+  stage,
+  onHover,
+  onLeave,
+}: {
+  stage?: CardOnBoard[];
+  onHover?: (card: HoverCardInfo) => void;
+  onLeave?: () => void;
+}) {
+  const stageCard = stage?.[0];
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Stage</span>
+      {stageCard ? (
+        <CardImage
+          id={stageCard.id}
+          name={stageCard.name}
+          active={stageCard.active}
+          donAttached={stageCard.donAttached}
+          power={stageCard.power}
+          effect={stageCard.effect}
+          type={stageCard.type}
+          cost={stageCard.cost}
+          onHover={onHover}
+          onLeave={onLeave}
+        />
+      ) : (
+        <EmptySlot />
+      )}
+    </div>
+  );
+}
+
+// 4 numbered fixed slots; extra slots shown if more than 4 characters are in play
 function CharacterRow({
   characters,
   onHover,
@@ -196,60 +258,53 @@ function CharacterRow({
   onHover?: (card: HoverCardInfo) => void;
   onLeave?: () => void;
 }) {
-  if (characters.length === 0) {
-    return <div className="h-28 flex items-center justify-center text-gray-600 text-xs italic">No characters</div>;
-  }
+  const slotCount = Math.max(4, characters.length);
   return (
-    <div className="flex gap-2 flex-wrap min-h-[7rem]">
-      {characters.map((c, i) => (
-        <CardImage
-          key={`${c.id}-${i}`}
-          id={c.id}
-          name={c.name}
-          active={c.active}
-          donAttached={c.donAttached}
-          power={c.power}
-          effect={c.effect}
-          type={c.type}
-          cost={c.cost}
-          onHover={onHover}
-          onLeave={onLeave}
-        />
-      ))}
-    </div>
-  );
-}
-
-function DonRow({ don }: { don: PlayerState['don'] }) {
-  const total = don.totalAttached ?? 0;
-  return (
-    <div className="flex gap-1 flex-wrap min-h-[1.25rem] items-center">
-      <span className="text-xs text-gray-500 mr-1">DON!!:</span>
-      {total > 0 ? (
-        <span className="text-xs text-yellow-400">
-          {total} attached
-          {don.attachedToLeader > 0 ? ` (${don.attachedToLeader} on leader)` : ''}
-        </span>
-      ) : (
-        <span className="text-xs text-gray-600 italic">none attached</span>
-      )}
+    <div className="flex gap-2 flex-wrap">
+      {Array.from({ length: slotCount }).map((_, i) => {
+        const card = characters[i];
+        return (
+          <div key={i} className="flex flex-col items-center gap-0.5">
+            <span className="text-[10px] text-gray-600">{i + 1}</span>
+            {card ? (
+              <CardImage
+                id={card.id}
+                name={card.name}
+                active={card.active}
+                donAttached={card.donAttached}
+                power={card.power}
+                effect={card.effect}
+                type={card.type}
+                cost={card.cost}
+                onHover={onHover}
+                onLeave={onLeave}
+              />
+            ) : (
+              <EmptySlot />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 function HandRow({
   hand,
-  handCount,
   onHover,
   onLeave,
 }: {
   hand: PlayerState['hand'];
-  handCount: number;
   onHover?: (card: HoverCardInfo) => void;
   onLeave?: () => void;
 }) {
-  const unknownCount = Math.max(0, handCount - hand.length);
-
+  if (hand.length === 0) {
+    return (
+      <div className="h-28 flex items-center justify-center text-gray-600 text-xs italic">
+        No cards in hand
+      </div>
+    );
+  }
   return (
     <div className="flex gap-2 flex-wrap items-end min-h-[7rem]">
       {hand.map((h, i) => (
@@ -265,9 +320,6 @@ function HandRow({
           onHover={onHover}
           onLeave={onLeave}
         />
-      ))}
-      {Array.from({ length: unknownCount }).map((_, i) => (
-        <CardImage key={`unk-${i}`} id={null} faceDown active />
       ))}
     </div>
   );
@@ -289,21 +341,21 @@ function PlayerHalf({
 
   return (
     <div className={`flex flex-col gap-3 py-3 px-4 ${isBottom ? '' : 'flex-col-reverse'}`}>
-      {/* Hand */}
+      {/* Hand - all cards revealed */}
       <div>
         <span className={`text-xs font-semibold ${labelClass} mb-1 block`}>
-          {state.username} - Hand ({state.handCount})
+          {state.username} - Hand ({state.hand.length})
         </span>
-        <HandRow hand={state.hand} handCount={state.handCount} onHover={onHover} onLeave={onLeave} />
+        <HandRow hand={state.hand} onHover={onHover} onLeave={onLeave} />
       </div>
 
-      {/* DON!! */}
-      <DonRow don={state.don} />
-
-      {/* Characters */}
+      {/* Stage + Character zone */}
       <div>
-        <span className="text-xs text-gray-500 mb-1 block">Characters</span>
-        <CharacterRow characters={state.characters} onHover={onHover} onLeave={onLeave} />
+        <span className="text-xs text-gray-500 mb-2 block">Field</span>
+        <div className="flex gap-4 items-start">
+          <StageZone stage={state.stage} onHover={onHover} onLeave={onLeave} />
+          <CharacterRow characters={state.characters} onHover={onHover} onLeave={onLeave} />
+        </div>
       </div>
 
       {/* Leader + Life */}
@@ -338,14 +390,23 @@ export function ReplayBoard({
 }: ReplayBoardProps) {
   const { boardAfter, actions, activePlayer } = turn;
   const [hoveredCard, setHoveredCard] = useState<HoverCardInfo | null>(null);
+  // -1 = no action highlighted (turn overview); 0..N-1 = step through each action
+  const [currentActionIndex, setCurrentActionIndex] = useState(-1);
+
+  // Reset action step whenever the turn changes
+  useEffect(() => {
+    setCurrentActionIndex(-1);
+  }, [currentTurnIndex]);
+
+  const handlePrevAction = () =>
+    setCurrentActionIndex((i) => Math.max(-1, i - 1));
+
+  const handleNextAction = () =>
+    setCurrentActionIndex((i) => Math.min(actions.length - 1, i + 1));
 
   return (
     <div className="flex flex-col gap-4">
-      {hoveredCard && (
-        <CardEnlargePopup card={hoveredCard} onClose={() => setHoveredCard(null)} />
-      )}
-
-      {/* Turn nav */}
+      {/* Turn nav with DON meter */}
       <div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
         <button
           onClick={onPrev}
@@ -355,13 +416,12 @@ export function ReplayBoard({
         >
           Prev
         </button>
-        <div className="text-center">
+        <div className="flex flex-col items-center gap-1">
           <p className="text-white font-semibold">
             Turn {turn.turn} of {totalTurns}
           </p>
-          <p className="text-xs text-gray-400">
-            Active: Player {activePlayer}
-          </p>
+          <p className="text-xs text-gray-400">Player {activePlayer}&apos;s turn</p>
+          <DonMeter turnNum={turn.turn} />
         </div>
         <button
           onClick={onNext}
@@ -385,7 +445,6 @@ export function ReplayBoard({
               onLeave={() => setHoveredCard(null)}
             />
           </div>
-          {/* Center divider */}
           <div className="bg-gray-800 h-px" />
           {/* You (player 1) at bottom */}
           <PlayerHalf
@@ -396,23 +455,76 @@ export function ReplayBoard({
           />
         </div>
 
-        {/* Action log sidebar */}
-        <div className="w-64 flex-shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-            Turn {turn.turn} Actions
-          </h3>
-          {actions.length === 0 ? (
-            <p className="text-xs text-gray-600 italic">No actions recorded.</p>
+        {/* Right sidebar: card preview + play-by-play */}
+        <div className="w-72 flex-shrink-0 flex flex-col">
+          {/* Card preview - inline in sidebar, no overlay so hover stays stable */}
+          {hoveredCard ? (
+            <CardPreviewPanel card={hoveredCard} />
           ) : (
-            <ul className="space-y-1 overflow-y-auto max-h-96">
-              {actions.map((a, i) => (
-                <li key={i} className="text-xs text-gray-300 flex gap-1.5">
-                  <span className="text-gray-600 flex-shrink-0">{i + 1}.</span>
-                  <span>{a}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="bg-gray-900 border border-dashed border-gray-700 rounded-xl p-3 flex items-center justify-center text-xs text-gray-600 italic mb-3" style={{ minHeight: 80 }}>
+              Hover a card to preview
+            </div>
           )}
+
+          {/* Play-by-play action log */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 flex-1">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                Play by Play
+              </h3>
+              {actions.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handlePrevAction}
+                    disabled={currentActionIndex <= -1}
+                    className="w-5 h-5 flex items-center justify-center rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed text-xs"
+                    aria-label="Previous action"
+                  >
+                    &lt;
+                  </button>
+                  <span className="text-xs text-gray-500 tabular-nums w-10 text-center">
+                    {currentActionIndex === -1 ? `0/${actions.length}` : `${currentActionIndex + 1}/${actions.length}`}
+                  </span>
+                  <button
+                    onClick={handleNextAction}
+                    disabled={currentActionIndex >= actions.length - 1}
+                    className="w-5 h-5 flex items-center justify-center rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed text-xs"
+                    aria-label="Next action"
+                  >
+                    &gt;
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {currentActionIndex >= 0 && actions[currentActionIndex] && (
+              <div className="mb-2 px-2 py-1.5 rounded-lg bg-blue-900/40 border border-blue-800/60">
+                <p className="text-xs text-blue-200 leading-snug">{actions[currentActionIndex]}</p>
+              </div>
+            )}
+
+            {actions.length === 0 ? (
+              <p className="text-xs text-gray-600 italic">No actions recorded.</p>
+            ) : (
+              <ul className="space-y-0.5 overflow-y-auto max-h-80">
+                {actions.map((a, i) => (
+                  <li
+                    key={i}
+                    className={`text-xs flex gap-1.5 px-2 py-1 rounded transition-colors ${
+                      i === currentActionIndex
+                        ? 'bg-blue-900/50 text-white'
+                        : i < currentActionIndex
+                        ? 'text-gray-600'
+                        : 'text-gray-400'
+                    }`}
+                  >
+                    <span className="flex-shrink-0 text-gray-600">{i + 1}.</span>
+                    <span>{a}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
     </div>
