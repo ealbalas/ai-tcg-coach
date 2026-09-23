@@ -178,8 +178,9 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
         attribute: details?.attribute ?? null,
       };
     });
-    const stage = allBoardCards.filter((c) => c.type?.toLowerCase() === 'stage');
-    const characters = allBoardCards.filter((c) => c.type?.toLowerCase() !== 'stage');
+    const isStage = (c) => c.type?.toLowerCase() === 'stage';
+    const stage = allBoardCards.filter(isStage);
+    const characters = allBoardCards.filter((c) => !isStage(c));
     const hand = (snap.hand ?? []).map((id) => {
       const details = getCardDetails(id);
       return {
