@@ -108,7 +108,7 @@ function CardImage({
       )}
       <DonBadge count={donAttached} />
       {isCounter && (
-        <span className="absolute bottom-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold bg-amber-900/80 text-amber-300 leading-none z-10">
+        <span className="absolute bottom-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold bg-amber-900/80 text-amber-300 leading-none z-20">
           CTR
         </span>
       )}

@@ -178,8 +178,7 @@ function buildTurnsFromGameplay(lines, pState, nameToPlayer, parsed) {
         attribute: details?.attribute ?? null,
       };
     });
-    // Defensive: if details were missing (card not in cache at build time), re-query type now.
-    const isStage = (c) => (c.type ?? getCardType(c.id))?.toLowerCase() === 'stage';
+    const isStage = (c) => c.type?.toLowerCase() === 'stage';
     const stage = allBoardCards.filter(isStage);
     const characters = allBoardCards.filter((c) => !isStage(c));
     const hand = (snap.hand ?? []).map((id) => {
