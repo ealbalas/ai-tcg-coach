@@ -377,4 +377,28 @@ describe('ReplayBoard', () => {
     const badges = screen.getAllByText('CTR');
     expect(badges.length).toBeGreaterThan(0);
   });
+
+  it('renders 5 character slots per player when fewer than 5 characters are in play', () => {
+    const turn = makeTurn({
+      boardAfter: {
+        player1: makePlayerState('Alice#1234', 'OP01-001', {
+          characters: [{ id: 'OP01-016', name: 'Nami', active: true, donAttached: 0 }],
+          life: 3,
+        }),
+        player2: makePlayerState('Bob#5678', 'OP01-002', { life: 3 }),
+      },
+    });
+    render(
+      <ReplayBoard
+        turn={turn}
+        currentTurnIndex={0}
+        totalTurns={1}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+      />,
+    );
+    // Slot label "5" appears once per player's CharacterRow (player1: 1 card → 4 empty + 5th slot visible;
+    // player2: 0 cards → 5 empty slots). life=3 so no collision with LifeStack.
+    expect(screen.getAllByText('5').length).toBe(2);
+  });
 });
