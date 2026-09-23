@@ -13,8 +13,8 @@ function cardImageUrl(id: string | null) {
 function DonBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span className="absolute -top-1 -right-1 bg-yellow-400 text-yellow-900 text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center z-10 leading-none">
-      +{count}
+    <span className="absolute bottom-0 left-0 right-0 bg-gradient-to-r from-yellow-500 to-amber-400 text-yellow-900 text-[9px] font-bold flex items-center justify-center z-10 leading-none py-0.5">
+      +{count} DON!!
     </span>
   );
 }
@@ -125,17 +125,17 @@ function CardPreviewPanel({ card }: { card: HoverCardInfo | null }) {
       data-testid="card-enlarge-popup"
       className="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden p-3 mb-3"
     >
-      <div className="flex gap-3">
+      <div className="flex flex-col gap-2">
         <div
-          className="rounded-lg overflow-hidden bg-gray-700 flex-shrink-0"
-          style={{ width: 64, aspectRatio: '7/10' }}
+          className="rounded-lg overflow-hidden bg-gray-700 w-full"
+          style={{ aspectRatio: '7/10', maxWidth: 128 }}
         >
           {url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={url} alt={card.name ?? card.id} className="w-full h-full object-cover" />
           ) : null}
         </div>
-        <div className="flex flex-col gap-1 min-w-0 flex-1">
+        <div className="flex flex-col gap-1 min-w-0">
           <p className="text-white font-bold text-sm leading-tight">{card.name ?? card.id}</p>
           <div className="flex flex-wrap gap-1 text-xs text-gray-400">
             {card.type && (
@@ -153,7 +153,7 @@ function CardPreviewPanel({ card }: { card: HoverCardInfo | null }) {
             )}
           </div>
           {card.effect && (
-            <p className="text-xs text-gray-300 leading-relaxed line-clamp-5">
+            <p className="text-xs text-gray-300 leading-relaxed line-clamp-6">
               {card.effect}
             </p>
           )}
@@ -269,7 +269,7 @@ function StageZone({
   );
 }
 
-// 4 numbered fixed slots; extra slots shown if more than 4 characters are in play
+// 5 numbered fixed slots; extra slots shown if more than 5 characters are in play
 function CharacterRow({
   characters,
   onHover,
@@ -279,7 +279,7 @@ function CharacterRow({
   onHover?: (card: HoverCardInfo) => void;
   onLeave?: () => void;
 }) {
-  const slotCount = Math.max(4, characters.length);
+  const slotCount = Math.max(5, characters.length);
   return (
     <div className="flex gap-2 flex-wrap">
       {Array.from({ length: slotCount }).map((_, i) => {

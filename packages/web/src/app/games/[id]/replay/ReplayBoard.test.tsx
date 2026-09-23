@@ -150,7 +150,7 @@ describe('ReplayBoard', () => {
         onNext={vi.fn()}
       />,
     );
-    expect(screen.getByText('+2')).toBeTruthy();
+    expect(screen.getByText('+2 DON!!')).toBeTruthy();
   });
 
   it('renders action log entries', () => {
@@ -225,7 +225,7 @@ describe('ReplayBoard', () => {
         onNext={vi.fn()}
       />,
     );
-    expect(screen.getByText('+2')).toBeTruthy();
+    expect(screen.getByText('+2 DON!!')).toBeTruthy();
   });
 
   it('CardEnlargePopup renders with power and effect when hovered', () => {
